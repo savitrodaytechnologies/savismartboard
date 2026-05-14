@@ -1,0 +1,43 @@
+{
+  "folders": [
+    { "name": "01 — Backend (Smartboard core)",     "path": "backend/Smartboard.Api" },
+    { "name": "02 — Backend tests",                 "path": "backend/Smartboard.Api.Tests" },
+    { "name": "03 — Frontend (canvas + AI)",        "path": "frontend" },
+    { "name": "04 — DB (migrations + seed)",        "path": "db" },
+    { "name": "05 — Docs",                          "path": "docs" },
+    { "name": "06 — Repo root (scripts, CI, README)", "path": "." }
+  ],
+  "settings": {
+    "window.title": "Parivesh — Smartboard Core | ${activeEditorShort}${separator}${rootName}",
+    "files.exclude": {
+      "**/bin": true,
+      "**/obj": true,
+      "**/node_modules": true,
+      "**/dist": true
+    },
+    "search.exclude": {
+      "**/bin": true,
+      "**/obj": true,
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/*.docx": true
+    },
+    "editor.formatOnSave": true,
+    "[csharp]": { "editor.defaultFormatter": "ms-dotnettools.csharp" },
+    "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+    "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-dotnettools.csdevkit",
+      "ms-dotnettools.csharp",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "bradlc.vscode-tailwindcss",
+      "ms-mssql.mssql",
+      "github.copilot",
+      "github.copilot-chat",
+      "eamodio.gitlens"
+    ]
+  }
+}
