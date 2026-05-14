@@ -8,6 +8,25 @@ Lead developer / reviewer: **Parivesh**. Every PR is auto-routed to him via [.gi
 
 ---
 
+## 0. Deployment context (read first)
+
+- **KBot** runs on **Linux EC2** in **AWS Account C** (your current box).
+- **Smartboard core** will run on **Linux EC2 too**. To start, it will be **co-hosted on your KBot EC2** (same instance) to save cost while we bootstrap. Later it moves to its own EC2 / account.
+- **Savischools** is on **Windows EC2 + MS SQL** in **AWS Account A** (separate account).
+
+**What this means for you (Mukesh):**
+
+1. **Capacity on the shared EC2** — confirm the instance has headroom for one more process (`dotnet Smartboard.Api.dll` + nginx). Bare minimum **t3.small / t4g.small** (2 vCPU, 2 GB). If KBot is already on something smaller, plan to bump it to `t3.medium` / `t4g.medium`. Parivesh will own the deploy scripts; you only need to confirm the box can take the load and share SSH access.
+2. **Process isolation, not OS isolation** — Smartboard runs as its own `systemd` service on a different port (`5000`), reverse-proxied by nginx. KBot stays on its current port. They share CPU/RAM/disk but nothing else.
+3. **Localhost shortcut** — because both processes live on the same box initially, Smartboard can call KBot at `http://localhost:<kbot-port>` (or `http://127.0.0.1:<kbot-port>`). Set `KBot:BaseUrl` accordingly in `appsettings.Production.json`. **No public internet, no auth headache for the dev/staging phase.** Still send the API key header so prod (when it moves off-box) is identical.
+4. **When Smartboard moves to its own EC2** (later), KBot will need to either:
+   - Expose its ALB to the Smartboard NAT EIP (with API key + WAF), **or**
+   - Set up **AWS PrivateLink** — KBot exposes its ALB as a VPC Endpoint Service; Smartboard’s account creates an interface endpoint to consume it. Cross-account, no peering, no public internet.
+   Plan for this from day one in your API contracts (don’t hard-code localhost in code; only in config).
+5. **No cross-account IAM roles needed** for HTTP API calls. Only matters if Smartboard ever reads KBot’s S3 directly.
+
+---
+
 ## 1. One-time machine setup
 
 ```powershell

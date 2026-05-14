@@ -8,6 +8,25 @@ Lead developer / reviewer: **Parivesh**. Every PR is auto-routed to him via [.gi
 
 ---
 
+## 0. Deployment context (read first)
+
+- **Savischools** runs on **Windows EC2 + MS SQL** in **AWS Account A**.
+- **KBot** runs on **Linux EC2** in **AWS Account C**.
+- **Smartboard core** will run on **Linux EC2** — initially co-hosted on the **same EC2 as KBot** (Mukesh’s box) to save cost while we bootstrap. Later it moves to its own EC2 / account.
+- The three accounts are separate. Smartboard → Savischools traffic crosses **AWS account boundaries** (Account B/C → Account A).
+
+**What this means for you (Manohar):**
+
+1. **Savischools must be reachable from the Smartboard EC2.** For dev/staging the Smartboard EC2 will hit the Savischools public ALB over HTTPS. Coordinate with the Savischools/AWS team to allow this — ask for one of:
+   - WAF / SG allowlist of the Smartboard EC2 NAT Gateway EIP, **or**
+   - mTLS between the two ALBs, **or**
+   - (Production) AWS **PrivateLink** — Savischools exposes its ALB as a VPC Endpoint Service; Smartboard consumes it. No public exposure, no peering, works across accounts.
+2. **JWKS endpoint must be reachable** from the Smartboard EC2 — ASP.NET’s JWT middleware fetches public keys at startup. Whatever connectivity option above you pick, JWKS must work over it.
+3. **No cross-account IAM roles needed** for HTTP API calls. IAM only matters if you ever read Savischools’ S3 / SQS directly (you won’t).
+4. **Auth flow is unchanged regardless of hosting:** Savischools issues a JWT → browser sends it to Smartboard → Smartboard validates against Savischools JWKS → forwards it on outbound calls.
+
+---
+
 ## 1. One-time machine setup
 
 ```powershell
