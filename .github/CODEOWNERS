@@ -1,0 +1,39 @@
+# CODEOWNERS — Parivesh reviews everything; area owners are auto-requested.
+# Replace placeholders with real GitHub usernames before pushing.
+
+*                                            @parivesh
+
+# Smartboard core
+/backend/Smartboard.Api/Controllers/SmartboardSessionController.cs   @parivesh
+/backend/Smartboard.Api/Controllers/SmartboardAiController.cs        @parivesh
+/backend/Smartboard.Api/Services/SmartboardSessionService.cs         @parivesh
+/backend/Smartboard.Api/Services/SmartboardAiService.cs              @parivesh
+/backend/Smartboard.Api/Repositories/                                @parivesh
+/frontend/src/components/whiteboard/                                 @parivesh
+/frontend/src/components/ai/                                         @parivesh
+/frontend/src/services/smartboardSessionService.ts                   @parivesh
+/frontend/src/services/aiService.ts                                  @parivesh
+
+# Savischools integration — Manohar
+/backend/Smartboard.Api/Controllers/SmartboardContextController.cs   @manohar @parivesh
+/backend/Smartboard.Api/Services/SmartboardContextService.cs         @manohar @parivesh
+/backend/Smartboard.Api/HttpClients/SavischoolsClient.cs             @manohar @parivesh
+/backend/Smartboard.Api/Auth/                                        @manohar @parivesh
+/frontend/src/components/context/                                    @manohar @parivesh
+/frontend/src/pages/TeacherDashboardPage.tsx                         @manohar @parivesh
+/frontend/src/services/savischoolsContextService.ts                  @manohar @parivesh
+
+# KBot integration — Mukesh
+/backend/Smartboard.Api/Controllers/SmartboardKBotContentController.cs  @mukesh @parivesh
+/backend/Smartboard.Api/Controllers/SmartboardQuestionController.cs     @mukesh @parivesh
+/backend/Smartboard.Api/Services/KBotContentService.cs                  @mukesh @parivesh
+/backend/Smartboard.Api/Services/KBotQuestionService.cs                 @mukesh @parivesh
+/backend/Smartboard.Api/HttpClients/KBotClient.cs                       @mukesh @parivesh
+/frontend/src/components/kbot/                                          @mukesh @parivesh
+/frontend/src/components/questions/                                     @mukesh @parivesh
+/frontend/src/services/kbotContentService.ts                            @mukesh @parivesh
+/frontend/src/services/kbotQuestionService.ts                           @mukesh @parivesh
+
+# DB and docs
+/db/                                                                 @parivesh
+/docs/                                                               @parivesh
