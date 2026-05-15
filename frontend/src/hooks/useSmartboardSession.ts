@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { db, offlineId, pageKey, type LocalPage } from '@/db/localDb';
+import { db, pageKey, type LocalPage } from '@/db/localDb';
 import { smartboardSessionService } from '@/services/smartboardSessionService';
 import { enqueue, processQueue } from '@/services/syncService';
 import type { Annotation, PagePayload, SourceType } from '@/types';

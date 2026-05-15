@@ -58,8 +58,8 @@ export default function TopicTeachingPage() {
                 createdAt: new Date().toISOString(),
                 modifiedAt: new Date().toISOString(),
             });
-            await db.pages.put({ key: pageKey(sid, 1), sessionId: sid, pageNo: 1, pageType: 'ContentCard', sourceType: 'KBotContentCard', sourceId: withCardId, sourceVersionId: withVersionId, pageJson: json, revision: 1, syncStatus: 'pending' });
-            await enqueue({ op: 'savePage', payload: { sessionId: sid, pageNo: 1, pageType: 'ContentCard', sourceType: 'KBotContentCard', sourceId: withCardId, sourceVersionId: withVersionId, pageJson: json, revision: 1 } });
+            await db.pages.put({ key: pageKey(sid, 1), sessionId: sid, pageNo: 1, pageType: 'ContentCard', sourceType: 'KBotContentCard', sourceId: withCardId ?? null, sourceVersionId: withVersionId ?? null, pageJson: json, revision: 1, syncStatus: 'pending' });
+            await enqueue({ op: 'savePage', payload: { sessionId: sid, pageNo: 1, pageType: 'ContentCard', sourceType: 'KBotContentCard', sourceId: withCardId ?? null, sourceVersionId: withVersionId ?? null, pageJson: json, revision: 1 } });
             void processQueue();
             navigate(`/session/${sid}`);
         } finally {

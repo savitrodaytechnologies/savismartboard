@@ -1,19 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { savischoolsContextService } from '@/services/savischoolsContextService';
-import { smartboardSessionService } from '@/services/smartboardSessionService';
+import { smartboardSessionService, type RecentSession } from '@/services/smartboardSessionService';
 import { startSessionOfflineFirst } from '@/services/sessionStartService';
 import { db } from '@/db/localDb';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import type { ClassDto, SubjectDto, TopicDto } from '@/types';
-
-// ── lightweight session summary shape from GET /api/smartboard/sessions/recent ──
-interface RecentSession {
-    sessionId: number;
-    status: string;
-    startedAt: string;
-    sessionTitle?: string;
-}
 
 export default function TeacherDashboardPage() {
     const navigate = useNavigate(); const isOnline = useOnlineStatus();
@@ -94,6 +86,16 @@ export default function TeacherDashboardPage() {
         finally {
             setStarting(false);
         }
+    }
+
+    function handleBrowseTopic() {
+        if (!selectedClass || !selectedSubject || !selectedTopic) return;
+        const params = new URLSearchParams({
+            classId: String(selectedClass.classId),
+            subjectId: String(selectedSubject.subjectId),
+            title: `${selectedSubject.name} — ${selectedTopic.name}`,
+        });
+        navigate(`/teach/${selectedTopic.topicId}?${params.toString()}`);
     }
 
     const canStart = !!selectedClass && !!selectedSubject;

@@ -91,7 +91,7 @@ async function execute(op: SyncOperation): Promise<void> {
                     q.operation.payload.sessionId === localId
                 ) {
                     await db.syncQueue.update(q.id!, {
-                        operation: { ...q.operation, payload: { ...q.operation.payload, sessionId: serverSessionId } },
+                        operation: { ...q.operation, payload: { ...q.operation.payload, sessionId: serverSessionId } } as SyncOperation,
                     });
                 }
             }
