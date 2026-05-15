@@ -22,7 +22,7 @@ if [ ! -f /opt/smartboard/env ]; then
 # ── Populated by GitHub Actions deploy on every push to main ──────────────
 # Do not edit manually (changes will be overwritten on next deploy).
 # To test locally: fill in the values below.
-ConnectionStrings__Smartboard=Server=rdsexpserver.ccmuwbvpbelg.ap-south-1.rds.amazonaws.com,1433;Database=savismartboard;User Id=smartuser;Password=CHANGE_ME;Encrypt=True;TrustServerCertificate=False;
+ConnectionStrings__Smartboard=Server=rdsexpserver.ccmuwbvpbelg.ap-south-1.rds.amazonaws.com,1433;Database=savismartboard;User Id=savismart;Password=dsfljdshjsad6^&767@@@#;Encrypt=True;TrustServerCertificate=False;
 ASPNETCORE_ENVIRONMENT=Production
 ASPNETCORE_URLS=http://0.0.0.0:5000
 EOF
