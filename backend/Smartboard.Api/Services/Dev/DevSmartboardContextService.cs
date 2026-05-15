@@ -35,15 +35,15 @@ public sealed class DevSmartboardContextService : ISmartboardContextService
 
     private static readonly Dictionary<int, IReadOnlyList<TopicDto>> _topics = new()
     {
-        [101] = [new(1001, "Fractions and Decimals",   101), new(1002, "Linear Equations",     101), new(1003, "Basic Geometry",        101)],
-        [102] = [new(1011, "Light and Optics",         102), new(1012, "Force and Motion",      102), new(1013, "Matter and Its States", 102)],
-        [201] = [new(2001, "Polynomials",               201), new(2002, "Quadratic Equations",  201), new(2003, "Coordinate Geometry",   201)],
-        [202] = [new(2011, "Laws of Motion",            202), new(2012, "Work and Energy",      202), new(2013, "Gravitation",           202)],
-        [203] = [new(2021, "Atoms and Molecules",       203), new(2022, "Chemical Reactions",   203), new(2023, "Acids, Bases & Salts",  203)],
-        [301] = [new(3001, "Real Numbers",              301), new(3002, "Pair of Linear Equations", 301), new(3003, "Circles",           301)],
-        [302] = [new(3011, "Electricity",               302), new(3012, "Magnetic Effects",     302), new(3013, "Light — Reflection",   302)],
-        [303] = [new(3021, "Chemical Equations",        303), new(3022, "Acids and Bases",      303), new(3023, "Metals and Non-metals", 303)],
-        [304] = [new(3031, "Life Processes",            304), new(3032, "Control and Coordination", 304), new(3033, "Heredity",         304)]
+        [101] = [new(1001, "Fractions and Decimals", 101), new(1002, "Linear Equations", 101), new(1003, "Basic Geometry", 101)],
+        [102] = [new(1011, "Light and Optics", 102), new(1012, "Force and Motion", 102), new(1013, "Matter and Its States", 102)],
+        [201] = [new(2001, "Polynomials", 201), new(2002, "Quadratic Equations", 201), new(2003, "Coordinate Geometry", 201)],
+        [202] = [new(2011, "Laws of Motion", 202), new(2012, "Work and Energy", 202), new(2013, "Gravitation", 202)],
+        [203] = [new(2021, "Atoms and Molecules", 203), new(2022, "Chemical Reactions", 203), new(2023, "Acids, Bases & Salts", 203)],
+        [301] = [new(3001, "Real Numbers", 301), new(3002, "Pair of Linear Equations", 301), new(3003, "Circles", 301)],
+        [302] = [new(3011, "Electricity", 302), new(3012, "Magnetic Effects", 302), new(3013, "Light — Reflection", 302)],
+        [303] = [new(3021, "Chemical Equations", 303), new(3022, "Acids and Bases", 303), new(3023, "Metals and Non-metals", 303)],
+        [304] = [new(3031, "Life Processes", 304), new(3032, "Control and Coordination", 304), new(3033, "Heredity", 304)]
     };
 
     public Task<TeacherContextDto> GetContextAsync(CancellationToken ct = default)

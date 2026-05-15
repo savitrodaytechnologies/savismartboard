@@ -7,6 +7,11 @@ export interface TeacherContext {
     teacherName: string;
 }
 
+export interface ClassDto { classId: number; name: string; }
+export interface SectionDto { sectionId: number; name: string; }
+export interface SubjectDto { subjectId: number; name: string; }
+export interface TopicDto { topicId: number; name: string; subjectId: number; }
+
 export interface ContentCardSummary { cardId: number; title: string; versionCount: number; }
 export interface ContentCardVersion { cardId: number; versionId: number; label: string; updatedAt: string; }
 export interface RenderedCard { cardId: number; versionId: number; html: string; viewportWidth: number; viewportHeight: number; etag: string; }

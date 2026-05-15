@@ -5,13 +5,15 @@ import SmartboardSessionPage from '@/pages/SmartboardSessionPage';
 import DevToolbar from '@/components/DevToolbar';
 
 export default function App() {
-  return (
-    <>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<TeacherDashboardPage />} />
-        <Route path="/teach/:topicId" element={<TopicTeachingPage />} />
-        <Route path="/session/:sessionId" element={<SmartboardSessionPage />} />
-      </Routes>
-      {import.meta.env.DEV && <DevToolbar />}
-    </>
+    return (
+        <>
+            <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<TeacherDashboardPage />} />
+                <Route path="/teach/:topicId" element={<TopicTeachingPage />} />
+                <Route path="/session/:sessionId" element={<SmartboardSessionPage />} />
+            </Routes>
+            {import.meta.env.DEV && <DevToolbar />}
+        </>
+    );
+}

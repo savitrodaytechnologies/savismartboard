@@ -38,12 +38,12 @@ if (builder.Environment.IsDevelopment())
         {
             options.TokenValidationParameters = new TokenValidationParameters
             {
-                ValidateIssuer           = false,
-                ValidateAudience         = false,
-                ValidateLifetime         = true,
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey         = devKey,
-                ClockSkew                = TimeSpan.FromMinutes(5)
+                IssuerSigningKey = devKey,
+                ClockSkew = TimeSpan.FromMinutes(5)
             };
         });
 }
@@ -53,16 +53,16 @@ else
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
-            options.Authority             = jwt["Authority"];
-            options.Audience              = jwt["Audience"];
-            options.RequireHttpsMetadata  = true;
+            options.Authority = jwt["Authority"];
+            options.Audience = jwt["Audience"];
+            options.RequireHttpsMetadata = true;
             options.TokenValidationParameters = new TokenValidationParameters
             {
-                ValidateIssuer           = true,
-                ValidateAudience         = true,
-                ValidateLifetime         = true,
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                ClockSkew                = TimeSpan.FromMinutes(2)
+                ClockSkew = TimeSpan.FromMinutes(2)
             };
         });
 }
@@ -105,12 +105,12 @@ builder.Services.AddSwaggerGen(c =>
     // Adds a Bearer token input box in Swagger UI
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Name         = "Authorization",
-        Type         = SecuritySchemeType.Http,
-        Scheme       = "bearer",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
         BearerFormat = "JWT",
-        In           = ParameterLocation.Header,
-        Description  = "Dev: GET /api/dev/token → copy token → paste here (without 'Bearer ' prefix)."
+        In = ParameterLocation.Header,
+        Description = "Dev: GET /api/dev/token → copy token → paste here (without 'Bearer ' prefix)."
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {

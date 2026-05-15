@@ -34,8 +34,16 @@ public sealed class SmartboardSessionRepository : ISmartboardSessionRepository
         using var conn = _db.Create();
         return await conn.ExecuteScalarAsync<long>(
             new CommandDefinition(sql,
-                new { SchoolId = schoolId, TeacherId = teacherId,
-                      req.ClassId, req.SectionId, req.SubjectId, req.TopicId, req.SessionTitle },
+                new
+                {
+                    SchoolId = schoolId,
+                    TeacherId = teacherId,
+                    req.ClassId,
+                    req.SectionId,
+                    req.SubjectId,
+                    req.TopicId,
+                    req.SessionTitle
+                },
                 cancellationToken: ct));
     }
 
@@ -129,9 +137,19 @@ public sealed class SmartboardSessionRepository : ISmartboardSessionRepository
 
         using var conn = _db.Create();
         await conn.ExecuteAsync(new CommandDefinition(sql,
-            new { SchoolId = schoolId, TeacherId = teacherId, SessionId = sessionId,
-                  req.PageNo, req.PageType, req.SourceType, req.SourceId,
-                  req.SourceVersionId, req.PageJson, req.Revision },
+            new
+            {
+                SchoolId = schoolId,
+                TeacherId = teacherId,
+                SessionId = sessionId,
+                req.PageNo,
+                req.PageType,
+                req.SourceType,
+                req.SourceId,
+                req.SourceVersionId,
+                req.PageJson,
+                req.Revision
+            },
             cancellationToken: ct));
     }
 

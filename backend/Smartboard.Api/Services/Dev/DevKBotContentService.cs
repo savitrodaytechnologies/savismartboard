@@ -82,11 +82,11 @@ public sealed class DevKBotContentService : IKBotContentService
             : Card("Dev Placeholder Card", "<p>This is a development placeholder. Mukesh will implement the real KBot render.</p>");
 
         return Task.FromResult(new RenderedCardDto(
-            CardId:        cardId,
-            VersionId:     versionId,
-            Html:          html,
+            CardId: cardId,
+            VersionId: versionId,
+            Html: html,
             ViewportWidth: 1280,
             ViewportHeight: 720,
-            ETag:          $"dev-{cardId}-v{versionId}"));
+            ETag: $"dev-{cardId}-v{versionId}"));
     }
 }

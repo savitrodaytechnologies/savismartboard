@@ -32,17 +32,17 @@ public sealed class SmartboardUsageLogRepository : ISmartboardUsageLogRepository
         using var conn = _db.Create();
         await conn.ExecuteAsync(new CommandDefinition(sql, new
         {
-            SchoolId      = schoolId,
-            TeacherId     = teacherId,
-            SessionId     = sessionId,
-            TopicId       = topicId,
-            RequestType   = requestType,
-            PromptText    = promptText,
-            ResponseText  = responseText,
-            Provider      = provider,
-            ModelName     = modelName,
-            TokenCount    = tokenCount,
-            CostMicroUsd  = costMicroUsd
+            SchoolId = schoolId,
+            TeacherId = teacherId,
+            SessionId = sessionId,
+            TopicId = topicId,
+            RequestType = requestType,
+            PromptText = promptText,
+            ResponseText = responseText,
+            Provider = provider,
+            ModelName = modelName,
+            TokenCount = tokenCount,
+            CostMicroUsd = costMicroUsd
         }, cancellationToken: ct));
     }
 }

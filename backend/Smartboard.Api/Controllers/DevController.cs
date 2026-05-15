@@ -35,9 +35,9 @@ public sealed class DevController : ControllerBase
         if (!_env.IsDevelopment())
             return NotFound();
 
-        var key    = _cfg["DevJwt:Key"] ?? throw new InvalidOperationException("DevJwt:Key not configured.");
+        var key = _cfg["DevJwt:Key"] ?? throw new InvalidOperationException("DevJwt:Key not configured.");
         var secret = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var creds  = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
+        var creds = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
         {
@@ -53,19 +53,19 @@ public sealed class DevController : ControllerBase
         };
 
         var token = new JwtSecurityToken(
-            issuer:             "smartboard-dev",
-            audience:           "smartboard-api",
-            claims:             claims,
-            notBefore:          DateTime.UtcNow,
-            expires:            DateTime.UtcNow.AddHours(8),
+            issuer: "smartboard-dev",
+            audience: "smartboard-api",
+            claims: claims,
+            notBefore: DateTime.UtcNow,
+            expires: DateTime.UtcNow.AddHours(8),
             signingCredentials: creds);
 
         var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
         return Ok(new DevTokenResponse(
-            Token:     tokenString,
+            Token: tokenString,
             ExpiresIn: 8 * 3600,
-            Note:      "Paste this in Swagger Authorize dialog as:  Bearer <token>"));
+            Note: "Paste this in Swagger Authorize dialog as:  Bearer <token>"));
     }
 }
 
