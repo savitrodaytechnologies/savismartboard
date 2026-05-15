@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { kbotContentService } from '@/services/kbotContentService';
 import { kbotQuestionService } from '@/services/kbotQuestionService';
-import { smartboardSessionService } from '@/services/smartboardSessionService';
+import { startSessionOfflineFirst } from '@/services/sessionStartService';
+import { db, pageKey } from '@/db/localDb';
+import { enqueue, processQueue } from '@/services/syncService';
 import type { ContentCardSummary, RenderedCard, QuestionSummary } from '@/types';
 
 export default function TopicTeachingPage() {
@@ -45,37 +47,20 @@ export default function TopicTeachingPage() {
     async function startSession(withCardId?: number, withVersionId?: number, withHtml?: string) {
         setStarting(true);
         try {
-            const res = await smartboardSessionService.start({
-                classId,
-                subjectId,
-                topicId: tid,
-                sessionTitle,
-            }) as { sessionId: number };
-            const sid = res.sessionId;
-
-            // If a card was selected, pre-save the first page with it
-            if (withCardId != null && withVersionId != null && withHtml != null) {
-                const firstPage = {
-                    pageNo: 1,
-                    pageType: 'ContentCard',
-                    sourceType: 'KBotContentCard',
-                    sourceId: withCardId,
-                    sourceVersionId: withVersionId,
-                    pageJson: JSON.stringify({
-                        sourceType: 'KBotContentCard',
-                        sourceId: withCardId,
-                        sourceVersionId: withVersionId,
-                        background: { kind: 'html', url: withHtml },
-                        viewport: { width: previewCard?.viewportWidth ?? 1280, height: previewCard?.viewportHeight ?? 720 },
-                        annotations: [],
-                        createdAt: new Date().toISOString(),
-                        modifiedAt: new Date().toISOString(),
-                    }),
-                    revision: 1,
-                };
-                await smartboardSessionService.save(sid, firstPage);
-            }
-
+            const sid = await startSessionOfflineFirst({ classId, subjectId, topicId: tid, sessionTitle });
+            const json = JSON.stringify({
+                sourceType: 'KBotContentCard',
+                sourceId: withCardId,
+                sourceVersionId: withVersionId,
+                background: { kind: 'html', url: withHtml },
+                viewport: { width: previewCard?.viewportWidth ?? 1280, height: previewCard?.viewportHeight ?? 720 },
+                annotations: [],
+                createdAt: new Date().toISOString(),
+                modifiedAt: new Date().toISOString(),
+            });
+            await db.pages.put({ key: pageKey(sid, 1), sessionId: sid, pageNo: 1, pageType: 'ContentCard', sourceType: 'KBotContentCard', sourceId: withCardId, sourceVersionId: withVersionId, pageJson: json, revision: 1, syncStatus: 'pending' });
+            await enqueue({ op: 'savePage', payload: { sessionId: sid, pageNo: 1, pageType: 'ContentCard', sourceType: 'KBotContentCard', sourceId: withCardId, sourceVersionId: withVersionId, pageJson: json, revision: 1 } });
+            void processQueue();
             navigate(`/session/${sid}`);
         } finally {
             setStarting(false);
