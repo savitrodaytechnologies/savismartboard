@@ -39,7 +39,11 @@ echo "     Frontend deployed."
 
 echo "==> [5/5] Starting smartboard-api"
 sudo systemctl start smartboard-api
-sudo systemctl reload nginx
+
+# Reload the shared nginx container (handles teach.svais.net → port 5000)
+if sudo docker inspect saviknowledgebot-nginx-1 &>/dev/null; then
+    sudo docker exec saviknowledgebot-nginx-1 nginx -s reload 2>/dev/null && echo "     nginx reloaded." || true
+fi
 
 sleep 3
 sudo systemctl status smartboard-api --no-pager --lines 5
