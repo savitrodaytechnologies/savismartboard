@@ -24,6 +24,8 @@ export default defineConfig({
                 ],
             },
             workbox: {
+                skipWaiting: true,
+                clientsClaim: true,
                 // App shell — cache all JS/CSS/HTML (precache)
                 globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
                 // Runtime caching strategies
