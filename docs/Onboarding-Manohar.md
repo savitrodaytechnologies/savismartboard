@@ -82,7 +82,116 @@ Verify: open https://localhost:7001/swagger and http://localhost:5173/dashboard.
 
 ---
 
-## 4. Recommended order of work
+## 4. Integration contract — implement exactly this
+
+> This section is prescriptive. The C# interfaces are already defined; you fill in the bodies. Do not change method signatures.
+
+### Step A — Confirm JWT claims (Day 1, no code)
+
+Decode a real Savischools teacher JWT at https://jwt.io and verify these claims exist:
+
+| Claim name | Expected type | Example |
+|---|---|---|
+| `school_id` | integer string | `"42"` |
+| `teacher_id` | integer string | `"101"` |
+| `name` | string | `"Priya Sharma"` |
+| `school_name` | string | `"Delhi Public School"` |
+| `aud` | string | `"smartboard-api"` |
+| `iss` | string | `"https://auth.savischools.savitroday.com"` |
+
+If claim names differ (e.g. `schoolId` instead of `school_id`), update [Auth/TeacherContextAccessor.cs](backend/Smartboard.Api/Auth/TeacherContextAccessor.cs) accordingly.
+
+Update `appsettings.json`:
+```json
+"Savischools": {
+  "BaseUrl": "<real url here>",
+  "Jwt": {
+    "Authority": "<real JWKS authority here>",
+    "Audience": "smartboard-api"
+  }
+}
+```
+
+### Step B — Implement `SavischoolsClient`
+
+File: [HttpClients/SavischoolsClient.cs](backend/Smartboard.Api/HttpClients/SavischoolsClient.cs)
+
+Replace the current generic `GetAsync` with typed methods — **one per Savischools endpoint you call**:
+
+```csharp
+public interface ISavischoolsClient
+{
+    Task<SavischoolsMeResponse>    GetMeAsync(string bearerToken, CancellationToken ct = default);
+    Task<List<SavischoolsClass>>   GetClassesAsync(string bearerToken, CancellationToken ct = default);
+    Task<List<SavischoolsSection>> GetSectionsAsync(string bearerToken, int classId, CancellationToken ct = default);
+    Task<List<SavischoolsSubject>> GetSubjectsAsync(string bearerToken, int classId, CancellationToken ct = default);
+    Task<List<SavischoolsTopic>>   GetTopicsAsync(string bearerToken, int subjectId, int classId, CancellationToken ct = default);
+    Task                           MarkTopicTaughtAsync(string bearerToken, int topicId, int classId, CancellationToken ct = default);
+}
+```
+
+> `bearerToken` is the raw JWT string extracted from `IHttpContextAccessor` — forward it as `Authorization: Bearer {token}`.
+> Define the `SavischoolsXxx` response types as private record/class inside `SavischoolsClient.cs` — they are **not** exposed to the rest of the app (only the DTOs in `ContextDtos.cs` are).
+
+### Step C — Implement `SmartboardContextService`
+
+File: [Services/SmartboardContextService.cs](backend/Smartboard.Api/Services/SmartboardContextService.cs)
+
+Map each Savischools response to the Smartboard DTO — these are the exact return types the frontend expects:
+
+```csharp
+// Maps SavischoolsMeResponse → TeacherContextDto(schoolId, teacherId, schoolName, teacherName)
+public async Task<TeacherContextDto> GetContextAsync(CancellationToken ct)
+
+// Maps SavischoolsClass[] → ClassDto(classId, name)[]
+public async Task<IReadOnlyList<ClassDto>> GetClassesAsync(CancellationToken ct)
+
+// Maps SavischoolsSection[] → SectionDto(sectionId, name)[]
+public async Task<IReadOnlyList<SectionDto>> GetSectionsAsync(int classId, CancellationToken ct)
+
+// Maps SavischoolsSubject[] → SubjectDto(subjectId, name)[]
+public async Task<IReadOnlyList<SubjectDto>> GetSubjectsAsync(int classId, CancellationToken ct)
+
+// Maps SavischoolsTopic[] → TopicDto(topicId, name, subjectId)[]
+public async Task<IReadOnlyList<TopicDto>> GetTopicsAsync(int subjectId, int classId, CancellationToken ct)
+
+// Fire-and-forget POST to Savischools
+public async Task MarkTopicTaughtAsync(int topicId, CancellationToken ct)
+```
+
+### Step D — Exact JSON the frontend expects
+
+The Smartboard frontend calls these endpoints. **Do not rename fields** — the TypeScript types match these exactly.
+
+```
+GET /api/smartboard/context
+→ { "schoolId": 42, "teacherId": 101, "schoolName": "Delhi Public School", "teacherName": "Priya Sharma" }
+
+GET /api/smartboard/classes
+→ [{ "classId": 5, "name": "Class 5" }, ...]
+
+GET /api/smartboard/sections?classId=5
+→ [{ "sectionId": 1, "name": "Section A" }, ...]
+
+GET /api/smartboard/subjects?classId=5
+→ [{ "subjectId": 12, "name": "Mathematics" }, ...]
+
+GET /api/smartboard/topics?subjectId=12&classId=5
+→ [{ "topicId": 201, "name": "Fractions", "subjectId": 12 }, ...]
+
+POST /api/smartboard/syllabus/topics/201/mark-taught
+→ 204 No Content
+```
+
+### Step E — Frontend (Teacher Dashboard)
+
+File: [frontend/src/services/savischoolsContextService.ts](frontend/src/services/savischoolsContextService.ts)
+
+Methods already exist — just verify they work end-to-end once your backend is live. No frontend changes needed unless the dashboard shows blank data.
+
+---
+
+## 5. Recommended order of work
 
 1. **Auth contract verification** (½ day)
    - Get a sample Savischools JWT from their team. Decode it (https://jwt.io). Confirm claims for `school_id`, `teacher_id`, `name`, `school_name`, audience, issuer.
