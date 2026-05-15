@@ -1,0 +1,35 @@
+[Unit]
+Description=Savismartboard API (ASP.NET Core 8)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=ec2-user
+Group=ec2-user
+
+WorkingDirectory=/opt/smartboard/api
+ExecStart=/usr/bin/dotnet /opt/smartboard/api/Smartboard.Api.dll
+Restart=on-failure
+RestartSec=10
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+# Load non-secret production config; secret/password values are
+# written here by the deploy script — never committed to git.
+EnvironmentFile=/opt/smartboard/env
+
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://localhost:5000
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+# Resource limits (adjust for t3.medium)
+LimitNOFILE=65536
+MemoryMax=800M
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smartboard-api
+
+[Install]
+WantedBy=multi-user.target

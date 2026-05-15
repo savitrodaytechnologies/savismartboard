@@ -84,6 +84,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSerilogRequestLogging();
+app.UseStaticFiles();          // serves frontend/dist copied to wwwroot (Docker or published build)
 app.UseCors("frontend");
 app.UseAuthentication();
 app.UseAuthorization();

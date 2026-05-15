@@ -1,0 +1,114 @@
+name: deploy
+
+# Runs AFTER ci.yml passes (via branch protection) on every push to main.
+# Also supports manual trigger from the Actions tab.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Required GitHub secrets (Settings → Secrets and variables → Actions):
+#   EC2_HOST              — 13.205.70.12 (or your current public IP)
+#   EC2_SSH_KEY           — contents of saviknowledgebot.pem (the private key)
+#   SMARTBOARD_DB_CONNSTR — full ADO.NET connection string (password included)
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Backend ──
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish backend (linux-x64, framework-dependent)
+        run: |
+          dotnet publish backend/Smartboard.Api/Smartboard.Api.csproj \
+            -c Release -r linux-x64 --self-contained false \
+            -o publish/api
+
+      # ── Frontend ──
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build        # → frontend/dist
+
+      # ── Package ──
+      - name: Create deployment tarballs
+        run: |
+          tar -czf api.tar.gz -C publish/api .
+          tar -czf www.tar.gz -C frontend/dist .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deploy-artifacts
+          path: |
+            api.tar.gz
+            www.tar.gz
+          retention-days: 3
+
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # 'production' environment enables manual approval gate if configured.
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4          # needed for deploy.sh
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: deploy-artifacts
+
+      # ── Copy build artifacts to EC2 ──
+      - name: SCP artifacts to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          source:   "api.tar.gz,www.tar.gz"
+          target:   /tmp/smartboard-deploy/
+          overwrite: true
+
+      # ── Copy deploy script (always use the latest version from repo) ──
+      - name: SCP deploy script
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          source:   "deploy/scripts/deploy.sh"
+          target:   /tmp/smartboard-deploy/
+          strip_components: 2   # removes deploy/scripts/ prefix
+          overwrite: true
+
+      # ── Run deploy on EC2 ──
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SMARTBOARD_DB_CONNSTR: ${{ secrets.SMARTBOARD_DB_CONNSTR }}
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          # Pass env var securely — not interpolated directly in script text.
+          envs:     SMARTBOARD_DB_CONNSTR
+          script: |
+            set -euo pipefail
+            chmod +x /tmp/smartboard-deploy/deploy.sh
+            DEPLOY_DIR=/tmp/smartboard-deploy \
+              SMARTBOARD_DB_CONNSTR="$SMARTBOARD_DB_CONNSTR" \
+              bash /tmp/smartboard-deploy/deploy.sh
+            rm -rf /tmp/smartboard-deploy
