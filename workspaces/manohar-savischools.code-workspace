@@ -1,44 +1,77 @@
 {
-  "folders": [
-    { "name": "01 — Auth + claims",          "path": "../backend/Smartboard.Api/Auth" },
-    { "name": "02 — Savischools HttpClient", "path": "../backend/Smartboard.Api/HttpClients" },
-    { "name": "03 — Context service",        "path": "../backend/Smartboard.Api/Services" },
-    { "name": "04 — Context controller",     "path": "../backend/Smartboard.Api/Controllers" },
-    { "name": "05 — DTOs",                   "path": "../backend/Smartboard.Api/Models/Dto" },
-    { "name": "06 — Backend project root",   "path": "../backend/Smartboard.Api" },
-    { "name": "07 — Backend tests",          "path": "../backend/Smartboard.Api.Tests" },
-    { "name": "08 — Frontend (your pages + service)", "path": "../frontend" },
-    { "name": "09 — Onboarding + design",    "path": "../docs" }
-  ],
-  "settings": {
-    "window.title": "Manohar — Savischools Integration | ${activeEditorShort}",
-    "files.exclude": {
-      "**/bin": true,
-      "**/obj": true,
-      "**/node_modules": true,
-      "**/dist": true
+    "folders": [
+        {
+            "name": "01 — Auth + claims",
+            "path": "../backend/Smartboard.Api/Auth"
+        },
+        {
+            "name": "02 — Savischools HttpClient",
+            "path": "../backend/Smartboard.Api/HttpClients"
+        },
+        {
+            "name": "03 — Context service",
+            "path": "../backend/Smartboard.Api/Services"
+        },
+        {
+            "name": "04 — Context controller",
+            "path": "../backend/Smartboard.Api/Controllers"
+        },
+        {
+            "name": "05 — DTOs",
+            "path": "../backend/Smartboard.Api/Models/Dto"
+        },
+        {
+            "name": "06 — Backend project root",
+            "path": "../backend/Smartboard.Api"
+        },
+        {
+            "name": "07 — Backend tests",
+            "path": "../backend/Smartboard.Api.Tests"
+        },
+        {
+            "name": "08 — Frontend (your pages + service)",
+            "path": "../frontend"
+        },
+        {
+            "name": "09 — Onboarding + design",
+            "path": "../docs"
+        }
+    ],
+    "settings": {
+        "window.title": "Manohar — Savischools Integration | ${activeEditorShort}",
+        "files.exclude": {
+            "**/bin": true,
+            "**/obj": true,
+            "**/node_modules": true,
+            "**/dist": true
+        },
+        "search.exclude": {
+            "**/bin": true,
+            "**/obj": true,
+            "**/node_modules": true,
+            "**/dist": true
+        },
+        "editor.formatOnSave": true,
+        "[csharp]": {
+            "editor.defaultFormatter": "ms-dotnettools.csharp"
+        },
+        "[typescript]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "github.copilot.chat.welcomeMessage": "never"
     },
-    "search.exclude": {
-      "**/bin": true,
-      "**/obj": true,
-      "**/node_modules": true,
-      "**/dist": true
-    },
-    "editor.formatOnSave": true,
-    "[csharp]": { "editor.defaultFormatter": "ms-dotnettools.csharp" },
-    "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
-    "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
-    "github.copilot.chat.welcomeMessage": "never"
-  },
-  "extensions": {
-    "recommendations": [
-      "ms-dotnettools.csdevkit",
-      "ms-dotnettools.csharp",
-      "dbaeumer.vscode-eslint",
-      "esbenp.prettier-vscode",
-      "github.copilot",
-      "github.copilot-chat",
-      "eamodio.gitlens"
-    ]
-  }
+    "extensions": {
+        "recommendations": [
+            "ms-dotnettools.csdevkit",
+            "ms-dotnettools.csharp",
+            "dbaeumer.vscode-eslint",
+            "esbenp.prettier-vscode",
+            "github.copilot",
+            "github.copilot-chat",
+            "eamodio.gitlens"
+        ]
+    }
 }

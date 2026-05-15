@@ -1,11 +1,14 @@
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Serilog;
 using Smartboard.Api.Auth;
 using Smartboard.Api.HttpClients;
 using Smartboard.Api.Infrastructure;
 using Smartboard.Api.Repositories;
 using Smartboard.Api.Services;
+using Smartboard.Api.Services.Dev;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,23 +27,45 @@ builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("Ai"));
 builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
 builder.Services.AddHttpContextAccessor();
 
-// Auth — validates Savischools-issued JWT
-var jwt = builder.Configuration.GetSection("Savischools:Jwt");
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = jwt["Authority"];
-        options.Audience = jwt["Audience"];
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-        options.TokenValidationParameters = new TokenValidationParameters
+// Auth — dev: local symmetric key (no Savischools needed); prod: Savischools JWKS authority
+if (builder.Environment.IsDevelopment())
+{
+    var devKey = new SymmetricSecurityKey(
+        Encoding.UTF8.GetBytes(builder.Configuration["DevJwt:Key"]
+            ?? throw new InvalidOperationException("DevJwt:Key missing from appsettings.Development.json")));
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ClockSkew = TimeSpan.FromMinutes(2)
-        };
-    });
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer           = false,
+                ValidateAudience         = false,
+                ValidateLifetime         = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey         = devKey,
+                ClockSkew                = TimeSpan.FromMinutes(5)
+            };
+        });
+}
+else
+{
+    var jwt = builder.Configuration.GetSection("Savischools:Jwt");
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority             = jwt["Authority"];
+            options.Audience              = jwt["Audience"];
+            options.RequireHttpsMetadata  = true;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer           = true,
+                ValidateAudience         = true,
+                ValidateLifetime         = true,
+                ValidateIssuerSigningKey = true,
+                ClockSkew                = TimeSpan.FromMinutes(2)
+            };
+        });
+}
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<ITeacherContextAccessor, TeacherContextAccessor>();
 
@@ -52,10 +77,19 @@ builder.Services.AddHttpClient<IKBotClient, KBotClient>()
 builder.Services.AddHttpClient<IAiClient, AiClient>()
     .AddPolicyHandler(HttpPolicies.Retry());
 
-// Domain services
-builder.Services.AddScoped<ISmartboardContextService, SmartboardContextService>();
-builder.Services.AddScoped<IKBotContentService, KBotContentService>();
-builder.Services.AddScoped<IKBotQuestionService, KBotQuestionService>();
+// Domain services — dev uses local mocks so Parivesh can work without Savischools or KBot
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddScoped<ISmartboardContextService, DevSmartboardContextService>();
+    builder.Services.AddScoped<IKBotContentService, DevKBotContentService>();
+    builder.Services.AddScoped<IKBotQuestionService, DevKBotQuestionService>();
+}
+else
+{
+    builder.Services.AddScoped<ISmartboardContextService, SmartboardContextService>();
+    builder.Services.AddScoped<IKBotContentService, KBotContentService>();
+    builder.Services.AddScoped<IKBotQuestionService, KBotQuestionService>();
+}
 builder.Services.AddScoped<ISmartboardSessionService, SmartboardSessionService>();
 builder.Services.AddScoped<ISmartboardAiService, SmartboardAiService>();
 
@@ -65,7 +99,27 @@ builder.Services.AddScoped<ISmartboardUsageLogRepository, SmartboardUsageLogRepo
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Savismartboard API", Version = "v1" });
+    // Adds a Bearer token input box in Swagger UI
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name         = "Authorization",
+        Type         = SecuritySchemeType.Http,
+        Scheme       = "bearer",
+        BearerFormat = "JWT",
+        In           = ParameterLocation.Header,
+        Description  = "Dev: GET /api/dev/token → copy token → paste here (without 'Bearer ' prefix)."
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } },
+            Array.Empty<string>()
+        }
+    });
+});
 
 // CORS for the React dev server
 builder.Services.AddCors(o => o.AddPolicy("frontend", p => p

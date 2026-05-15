@@ -1,10 +1,10 @@
 // Shared types — co-owned. Mirror backend DTOs.
 
 export interface TeacherContext {
-  schoolId: number;
-  teacherId: number;
-  schoolName: string;
-  teacherName: string;
+    schoolId: number;
+    teacherId: number;
+    schoolName: string;
+    teacherName: string;
 }
 
 export interface ContentCardSummary { cardId: number; title: string; versionCount: number; }
@@ -15,27 +15,27 @@ export interface QuestionSummary { questionId: number; difficulty: string; previ
 export interface SolvedCard { questionId: number; stepByStepHtml: string; versionId: number; }
 
 export type SourceType =
-  | 'KBotContentCard'
-  | 'KBotQuestion'
-  | 'KBotSolvedCard'
-  | 'BlankBoard'
-  | 'AiGeneratedContent'
-  | 'UploadedPdf'
-  | 'UploadedImage';
+    | 'KBotContentCard'
+    | 'KBotQuestion'
+    | 'KBotSolvedCard'
+    | 'BlankBoard'
+    | 'AiGeneratedContent'
+    | 'UploadedPdf'
+    | 'UploadedImage';
 
 export interface PagePayload {
-  pageId: string;
-  sourceType: SourceType;
-  sourceId?: number;
-  sourceVersionId?: number;
-  background: { kind: 'html' | 'image' | 'pdf' | 'blank'; url?: string };
-  viewport: { width: number; height: number };
-  annotations: Annotation[];
-  createdAt: string;
-  modifiedAt: string;
+    pageId: string;
+    sourceType: SourceType;
+    sourceId?: number;
+    sourceVersionId?: number;
+    background: { kind: 'html' | 'image' | 'pdf' | 'blank'; url?: string };
+    viewport: { width: number; height: number };
+    annotations: Annotation[];
+    createdAt: string;
+    modifiedAt: string;
 }
 
 export type Annotation =
-  | { id: string; type: 'pen' | 'highlighter'; tool: { color: string; width: number; opacity: number }; points: number[] }
-  | { id: string; type: 'text'; tool: { color: string; size: number }; x: number; y: number; text: string }
-  | { id: string; type: 'shape'; tool: { color: string; width: number }; shape: 'rect' | 'circle' | 'arrow' | 'line'; points: number[] };
+    | { id: string; type: 'pen' | 'highlighter'; tool: { color: string; width: number; opacity: number }; points: number[] }
+    | { id: string; type: 'text'; tool: { color: string; size: number }; x: number; y: number; text: string }
+    | { id: string; type: 'shape'; tool: { color: string; width: number }; shape: 'rect' | 'circle' | 'arrow' | 'line'; points: number[] };

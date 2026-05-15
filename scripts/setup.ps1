@@ -6,7 +6,7 @@
 
 param(
     [string]$SqlServer = 'localhost',
-    [string]$Database  = 'Savismartboard'
+    [string]$Database = 'Savismartboard'
 )
 
 $ErrorActionPreference = 'Stop'

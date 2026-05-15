@@ -41,6 +41,6 @@ ENV ASPNETCORE_URLS=http://+:5000
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:5000/healthz || exit 1
+    CMD curl -f http://localhost:5000/healthz || exit 1
 
 ENTRYPOINT ["dotnet", "Smartboard.Api.dll"]

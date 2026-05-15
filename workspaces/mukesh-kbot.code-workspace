@@ -1,42 +1,72 @@
 {
-  "folders": [
-    { "name": "01 — KBot HttpClient",        "path": "../backend/Smartboard.Api/HttpClients" },
-    { "name": "02 — KBot services",          "path": "../backend/Smartboard.Api/Services" },
-    { "name": "03 — KBot controllers",       "path": "../backend/Smartboard.Api/Controllers" },
-    { "name": "04 — DTOs",                   "path": "../backend/Smartboard.Api/Models/Dto" },
-    { "name": "05 — Backend project root",   "path": "../backend/Smartboard.Api" },
-    { "name": "06 — Backend tests",          "path": "../backend/Smartboard.Api.Tests" },
-    { "name": "07 — Frontend (KBot UI + services)", "path": "../frontend" },
-    { "name": "08 — Onboarding + design",    "path": "../docs" }
-  ],
-  "settings": {
-    "window.title": "Mukesh — KBot Integration | ${activeEditorShort}",
-    "files.exclude": {
-      "**/bin": true,
-      "**/obj": true,
-      "**/node_modules": true,
-      "**/dist": true
+    "folders": [
+        {
+            "name": "01 — KBot HttpClient",
+            "path": "../backend/Smartboard.Api/HttpClients"
+        },
+        {
+            "name": "02 — KBot services",
+            "path": "../backend/Smartboard.Api/Services"
+        },
+        {
+            "name": "03 — KBot controllers",
+            "path": "../backend/Smartboard.Api/Controllers"
+        },
+        {
+            "name": "04 — DTOs",
+            "path": "../backend/Smartboard.Api/Models/Dto"
+        },
+        {
+            "name": "05 — Backend project root",
+            "path": "../backend/Smartboard.Api"
+        },
+        {
+            "name": "06 — Backend tests",
+            "path": "../backend/Smartboard.Api.Tests"
+        },
+        {
+            "name": "07 — Frontend (KBot UI + services)",
+            "path": "../frontend"
+        },
+        {
+            "name": "08 — Onboarding + design",
+            "path": "../docs"
+        }
+    ],
+    "settings": {
+        "window.title": "Mukesh — KBot Integration | ${activeEditorShort}",
+        "files.exclude": {
+            "**/bin": true,
+            "**/obj": true,
+            "**/node_modules": true,
+            "**/dist": true
+        },
+        "search.exclude": {
+            "**/bin": true,
+            "**/obj": true,
+            "**/node_modules": true,
+            "**/dist": true
+        },
+        "editor.formatOnSave": true,
+        "[csharp]": {
+            "editor.defaultFormatter": "ms-dotnettools.csharp"
+        },
+        "[typescript]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        }
     },
-    "search.exclude": {
-      "**/bin": true,
-      "**/obj": true,
-      "**/node_modules": true,
-      "**/dist": true
-    },
-    "editor.formatOnSave": true,
-    "[csharp]": { "editor.defaultFormatter": "ms-dotnettools.csharp" },
-    "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
-    "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" }
-  },
-  "extensions": {
-    "recommendations": [
-      "ms-dotnettools.csdevkit",
-      "ms-dotnettools.csharp",
-      "dbaeumer.vscode-eslint",
-      "esbenp.prettier-vscode",
-      "github.copilot",
-      "github.copilot-chat",
-      "eamodio.gitlens"
-    ]
-  }
+    "extensions": {
+        "recommendations": [
+            "ms-dotnettools.csdevkit",
+            "ms-dotnettools.csharp",
+            "dbaeumer.vscode-eslint",
+            "esbenp.prettier-vscode",
+            "github.copilot",
+            "github.copilot-chat",
+            "eamodio.gitlens"
+        ]
+    }
 }
