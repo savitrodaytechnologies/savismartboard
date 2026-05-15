@@ -1,0 +1,23 @@
+# Default: normalize to LF on commit, checkout as-is on Windows
+* text=auto eol=lf
+
+# Shell scripts must always be LF (executed on Linux EC2)
+*.sh text eol=lf
+
+# Windows-only files can be CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files — no line-ending conversion
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.docx binary
+*.zip binary
+*.tar.gz binary
