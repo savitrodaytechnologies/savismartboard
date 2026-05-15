@@ -20,7 +20,7 @@ TimeoutStopSec=30
 EnvironmentFile=/opt/smartboard/env
 
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment=ASPNETCORE_URLS=http://localhost:5000
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
 
 # Resource limits (adjust for t3.medium)

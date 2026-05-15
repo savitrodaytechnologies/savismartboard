@@ -16,7 +16,7 @@ ENV_FILE=/opt/smartboard/env
 
 echo "==> [1/5] Updating env file"
 if [ -n "${SMARTBOARD_DB_CONNSTR:-}" ]; then
-    printf 'ConnectionStrings__Smartboard=%s\nASPNETCORE_ENVIRONMENT=Production\nASPNETCORE_URLS=http://127.0.0.1:5000\n' \
+    printf 'ConnectionStrings__Smartboard=%s\nASPNETCORE_ENVIRONMENT=Production\nASPNETCORE_URLS=http://0.0.0.0:5000\n' \
         "$SMARTBOARD_DB_CONNSTR" > "$ENV_FILE"
     chmod 600 "$ENV_FILE"
     echo "     env file updated."
