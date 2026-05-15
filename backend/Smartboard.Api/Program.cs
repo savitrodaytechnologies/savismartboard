@@ -138,6 +138,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSerilogRequestLogging();
+app.UseDefaultFiles();         // serves index.html for / and unknown paths (SPA fallback)
 app.UseStaticFiles();          // serves frontend/dist copied to wwwroot (Docker or published build)
 app.UseCors("frontend");
 app.UseAuthentication();
@@ -146,5 +147,8 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/healthz");
 app.MapHealthChecks("/readyz");
+
+// SPA fallback — serve index.html for all unmatched routes so React Router works
+app.MapFallbackToFile("index.html");
 
 app.Run();
