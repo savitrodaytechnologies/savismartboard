@@ -183,12 +183,11 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             setShapeStart({ x, y });
             setPreviewShape({ x, y, w: 0, h: 0 });
         } else if (toolState.tool === 'eraser') {
+            isDrawing.current = true;   // enable drag-erase
+            onUndoPush([...page.annotations]);
+            onRedoClear();
             const id = (e.target as Konva.Node).id();
-            if (id) {
-                onUndoPush([...page.annotations]);
-                onRedoClear();
-                onCommit(prev => prev.filter(a => a.id !== id));
-            }
+            if (id) onCommit(prev => prev.filter(a => a.id !== id));
         }
     }, [toolState.tool, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear, isPanTool]);
 
@@ -207,6 +206,10 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
         if (toolState.tool === 'pen' || toolState.tool === 'highlighter') {
             setActivePoints(prev => [...prev, x, y]);
+        } else if (toolState.tool === 'eraser') {
+            // drag-erase: remove any annotation the cursor passes over
+            const id = (e.target as Konva.Node).id();
+            if (id) onCommit(prev => prev.filter(a => a.id !== id));
         } else if (shapeStart && ['rect', 'circle', 'arrow'].includes(toolState.tool)) {
             setPreviewShape({
                 x: Math.min(x, shapeStart.x),

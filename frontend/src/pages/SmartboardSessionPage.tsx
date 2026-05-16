@@ -28,6 +28,7 @@ export default function SmartboardSessionPage() {
     const [toolState, setToolState] = useState<ToolState>({ tool: 'pen', color: '#1e293b', strokeWidth: 3 });
     const [showEndConfirm, setShowEndConfirm] = useState(false);
     const [ending, setEnding] = useState(false);
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
 
     // Per-page undo/redo stacks (keyed by pageIndex)
     const [undoStacks, setUndoStacks] = useState<Record<number, Annotation[][]>>({});
@@ -62,9 +63,15 @@ export default function SmartboardSessionPage() {
 
     const handleClear = useCallback(() => {
         if (!currentPage?.annotations.length) return;
+        setShowClearConfirm(true);
+    }, [currentPage]);
+
+    const handleClearConfirmed = useCallback(() => {
+        if (!currentPage?.annotations.length) return;
         pushUndo(currentPage.annotations);
         clearRedo();
         setAnnotations(currentPageIndex, () => []);
+        setShowClearConfirm(false);
     }, [currentPage, currentPageIndex, setAnnotations, pushUndo, clearRedo]);
 
     const handleEndSession = useCallback(() => {
@@ -125,6 +132,32 @@ export default function SmartboardSessionPage() {
                 canRedo={(redoStacks[currentPageIndex]?.length ?? 0) > 0}
                 sessionTitle={`Session #${id}`}
             />
+
+            {/* ── Clear page confirmation modal ─────────────────── */}
+            {showClearConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+                        <h3 className="text-base font-semibold text-slate-800 mb-1">Clear this page?</h3>
+                        <p className="text-sm text-slate-500 mb-5">
+                            All annotations on this page will be erased. This cannot be undone after you leave the page.
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setShowClearConfirm(false)}
+                                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleClearConfirmed}
+                                className="rounded-lg px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                            >
+                                Clear Page
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── End Session confirmation modal ───────────────────── */}
             {showEndConfirm && (
