@@ -6,7 +6,7 @@ using Smartboard.Api.Services;
 namespace Smartboard.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[AllowAnonymous]
 [Route("api/smartboard/sessions")]
 public sealed class SmartboardSessionController : ControllerBase
 {

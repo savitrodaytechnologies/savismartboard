@@ -10,7 +10,7 @@ import PageStrip from '@/components/canvas/PageStrip';
 export default function SmartboardSessionPage() {
     const { sessionId } = useParams<{ sessionId: string }>();
     const navigate = useNavigate();
-    const id = Number(sessionId);
+    const id = sessionId ?? '';
 
     const {
         pages,

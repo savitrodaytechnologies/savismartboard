@@ -93,7 +93,7 @@ function deserialise(localPage: LocalPage): LivePage {
 
 // ─── hook ─────────────────────────────────────────────────────────────────────
 
-export function useSmartboardSession(sessionId: number) {
+export function useSmartboardSession(sessionId: number | string) {
     const [pages, setPages] = useState<LivePage[]>([blankPage(1)]);
     const [currentPageIndex, setCurrentPageIndex] = useState(0);
     const [status, setStatus] = useState<'loading' | 'ready' | 'ended' | 'error'>('loading');
@@ -104,12 +104,16 @@ export function useSmartboardSession(sessionId: number) {
         let cancelled = false;
 
         async function load() {
+            const numericId = typeof sessionId === 'string' ? Number(sessionId) : sessionId;
+            const isOffline = typeof sessionId === 'string' && isNaN(numericId);
+            const lookupId = isOffline ? sessionId as unknown as number : numericId;
+
             // 1. Try local DB first
             const localPages = await db.pages
-                .where('sessionId').equals(sessionId)
+                .where('sessionId').equals(lookupId)
                 .sortBy('pageNo');
 
-            const localSession = await db.sessions.get(sessionId);
+            const localSession = await db.sessions.get(lookupId);
 
             if (localPages.length > 0) {
                 if (!cancelled) {
@@ -119,14 +123,15 @@ export function useSmartboardSession(sessionId: number) {
                 return;
             }
 
-            // 2. Not in local DB — fetch from server (requires network)
-            if (!navigator.onLine) {
-                if (!cancelled) setStatus('ready'); // new blank session
+            // New session with no pages yet saved — just show blank board
+            if (isOffline || !navigator.onLine) {
+                if (!cancelled) setStatus('ready');
                 return;
             }
 
             try {
-                const session = await smartboardSessionService.get(sessionId) as {
+                const numId = typeof sessionId === 'string' ? Number(sessionId) : sessionId;
+                const session = await smartboardSessionService.get(numId) as {
                     status: string;
                     pages: { pageNo: number; pageType: string; sourceType: string | null; sourceId: number | null; sourceVersionId: number | null; pageJson: string; revision: number }[];
                 };
@@ -135,7 +140,7 @@ export function useSmartboardSession(sessionId: number) {
                 // Cache session locally
                 await db.sessions.put({
                     sessionId,
-                    serverSessionId: sessionId,
+                    serverSessionId: numId,
                     status: session.status as 'InProgress' | 'Ended',
                     startedAt: new Date().toISOString(),
                     sessionTitle: '',
