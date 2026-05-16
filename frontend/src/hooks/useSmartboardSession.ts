@@ -261,6 +261,17 @@ export function useSmartboardSession(sessionId: number | string) {
         setStatus('ended');
     }, [sessionId]);
 
+    // Flush any pages still waiting in the debounce timer
+    const flushDirty = useCallback(async () => {
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+        const dirty = pages.filter(p => p.dirty);
+        await Promise.all(dirty.map(p => persistPage(p)));
+        setPages(prev => prev.map(p => p.dirty ? { ...p, dirty: false } : p));
+    }, [pages, persistPage]);
+
     const currentPage = pages[currentPageIndex];
 
     return {
@@ -273,5 +284,6 @@ export function useSmartboardSession(sessionId: number | string) {
         addPage,
         deletePage,
         endSession,
+        flushDirty,
     };
 }
