@@ -83,12 +83,14 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddScoped<ISmartboardContextService, DevSmartboardContextService>();
     builder.Services.AddScoped<IKBotContentService, DevKBotContentService>();
     builder.Services.AddScoped<IKBotQuestionService, DevKBotQuestionService>();
+    builder.Services.AddScoped<IKBotCurriculumService, DevKBotCurriculumService>();
 }
 else
 {
     builder.Services.AddScoped<ISmartboardContextService, SmartboardContextService>();
     builder.Services.AddScoped<IKBotContentService, KBotContentService>();
     builder.Services.AddScoped<IKBotQuestionService, KBotQuestionService>();
+    builder.Services.AddScoped<IKBotCurriculumService, KBotCurriculumService>();
 }
 builder.Services.AddScoped<ISmartboardSessionService, SmartboardSessionService>();
 builder.Services.AddScoped<ISmartboardAiService, SmartboardAiService>();

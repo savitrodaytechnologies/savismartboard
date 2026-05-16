@@ -87,107 +87,140 @@ Verify: Swagger lists `/api/smartboard/kbot/...` endpoints. They return placehol
 
 ## 4. Integration contract — implement exactly this
 
-> This section is prescriptive. The C# interfaces are already defined; you fill in the bodies. Do not change method signatures.
+> This section is prescriptive. The C# interfaces are already defined and compile clean; you fill in the bodies. Do not change method signatures or DTO field names.
+>
+> **Full API spec**: [docs/kbot-smartboard-integration.md](kbot-smartboard-integration.md)  
+> **Interactive Swagger**: https://kbot.svais.net/docs  
+> **OpenAPI schema**: https://kbot.svais.net/openapi.json  
+> **Base URL** (already set in `appsettings.Production.json`): `https://kbot.svais.net/api/v1/curriculum`
 
-### Step A — Confirm KBot API details (Day 1, no code)
+### Step A — Auth (Day 1, confirm before writing code)
 
-Answer these before writing any code:
+KBot currently runs **without auth** (no token required during development). Once Savischools auth is live, KBot will validate the forwarded JWT. The `KBotClient` already forwards the incoming `Authorization` header automatically — you don't need to add auth code.
 
-1. What is the KBot HTTP port on the EC2? (default assumed: `8080`) → update `appsettings.Production.json` `KBot:BaseUrl`
-2. What auth does KBot require? Options:
-   - API key header (e.g. `X-Api-Key: <secret>`) → add to `appsettings.json` + `KBotOptions`
-   - No auth (localhost-only, acceptable for co-hosted phase)
-3. Are `cardId`, `questionId`, `versionId` `int` or `long`? (Current code uses `long` — align KBot to match)
-4. Does the render endpoint return raw HTML or a JSON envelope? (We need HTML in a field, not a raw `text/html` response)
+Confirm:
+1. Is `https://kbot.svais.net` reachable from the Smartboard EC2? Test: `curl https://kbot.svais.net/api/v1/curriculum/boards`
+2. Are `card_id`, `question_id`, `version_id` integers? (code uses `long` — compatible with int)
+3. Does KBot require any API key header? If yes, add it to `KBotOptions` and forward in `KBotClient`.
 
 ### Step B — Implement `KBotClient`
 
 File: [HttpClients/KBotClient.cs](backend/Smartboard.Api/HttpClients/KBotClient.cs)
 
-Replace the generic `GetAsync` with typed methods:
+The client already has `GetAsync` and `PostAsync` that forward the JWT. You implement the **services** — the client is just an HTTP transport. Define KBot response shapes as private records **inside each service file** (not in KBotClient).
+
+### Step C — Implement `KBotCurriculumService`
+
+File: [Services/KBotCurriculumService.cs](backend/Smartboard.Api/Services/KBotCurriculumService.cs)
 
 ```csharp
-public interface IKBotClient
-{
-    Task<List<KBotCardSummary>>   GetCardsForTopicAsync(long topicId, CancellationToken ct = default);
-    Task<List<KBotCardVersion>>   GetVersionsAsync(long cardId, CancellationToken ct = default);
-    Task<KBotRenderedCard>        RenderCardAsync(long cardId, int versionId, CancellationToken ct = default);
-    Task<List<KBotQuestionSummary>> GetQuestionsAsync(long topicId, string? difficulty, CancellationToken ct = default);
-    Task<KBotQuestion?>           GetQuestionAsync(long questionId, CancellationToken ct = default);
-    Task<KBotExplanation?>        GetExplanationAsync(long questionId, CancellationToken ct = default);
-    Task<KBotSolvedCard?>         GetSolvedCardAsync(long questionId, CancellationToken ct = default);
-}
+// GET /boards → BoardDto(code, name, country)[]
+public async Task<IReadOnlyList<BoardDto>> GetBoardsAsync(CancellationToken ct)
+
+// GET /grades?board={code}&subject={code} → GradeDto(grade, label)[]
+public async Task<IReadOnlyList<GradeDto>> GetGradesAsync(string? board, string? subject, CancellationToken ct)
+
+// GET /subjects?board={code}&grade={int} → KBotSubjectDto(code, name, colorHex)[]
+public async Task<IReadOnlyList<KBotSubjectDto>> GetSubjectsAsync(string? board, int? grade, CancellationToken ct)
+
+// GET /chapters?board={code}&grade={int}&subject={code} → ChapterDto(id, chapterNumber, title, grade, subject, board)[]
+public async Task<IReadOnlyList<ChapterDto>> GetChaptersAsync(string? board, int? grade, string? subject, CancellationToken ct)
+
+// GET /topics?chapter_id={int} → KBotTopicDto(id, slug, title, chapterId, floorLevel)[]
+// slug is the stable string ID used in all subsequent content calls
+public async Task<IReadOnlyList<KBotTopicDto>> GetTopicsAsync(int? chapterId, string? board, int? grade, string? subject, CancellationToken ct)
+
+// GET /topic/{slug}/rag-snippets?max={int} → RagSnippetDto(text, sourceCardId, sourceVersionId)[]
+public async Task<IReadOnlyList<RagSnippetDto>> GetRagSnippetsAsync(string slug, int max, CancellationToken ct)
 ```
 
-> Define `KBotXxx` response types as private records inside `KBotClient.cs` — they are **not** exposed outside (only the DTOs in `KBotContentDtos.cs` / `KBotQuestionDtos.cs` are).
-
-### Step C — Implement `KBotContentService`
+### Step D — Implement `KBotContentService`
 
 File: [Services/KBotContentService.cs](backend/Smartboard.Api/Services/KBotContentService.cs)
 
 ```csharp
-// Maps KBotCardSummary[] → ContentCardSummaryDto(cardId, title, versionCount)[]
-public async Task<IReadOnlyList<ContentCardSummaryDto>> GetCardsForTopicAsync(long topicId, CancellationToken ct)
+// GET /topic/{slug}/cards → TopicCardsDto
+// KBot response: { "slug": "...", "title": "...", "cards": { "L0": { "exists": true, "id": 54, "current_version_id": 54, ... }, "L1": {...} } }
+// Map to: TopicCardsDto(slug, title, cards: [CardLevelStatusDto(level, exists, cardId, currentVersionId, versionCount, isPublished, isStale), ...])
+public async Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct)
 
-// Maps KBotCardVersion[] → ContentCardVersionDto(cardId, versionId, label, updatedAt)[]
+// GET /cards/{card_id}/versions → ContentCardVersionDto[]
+// KBot: [{ "card_id": 54, "version_id": 54, "version": 1, "label": "v1", "updated_at": "...", "is_current": true, "is_published": false }]
 public async Task<IReadOnlyList<ContentCardVersionDto>> GetVersionsAsync(long cardId, CancellationToken ct)
 
-// Maps KBotRenderedCard → RenderedCardDto(cardId, versionId, html, viewportWidth, viewportHeight, etag)
+// GET /cards/{card_id}/render?version_id={vid} → RenderedCardDto
+// KBot: { "card_id": 54, "version_id": 54, "html": "...", "viewport_width": 1920, "viewport_height": 1080, "etag": "\"54-abc\"" }
 // MUST sanitize html with HtmlSanitizer (Ganss.Xss NuGet) before returning
-public async Task<RenderedCardDto> RenderAsync(long cardId, int versionId, CancellationToken ct)
+public async Task<RenderedCardDto?> RenderAsync(long cardId, int? versionId, CancellationToken ct)
 ```
 
-**NuGet to add**: `Ganss.Xss` — sanitize `html` before putting it in the DTO.
+**NuGet to add**: `Ganss.Xss` — sanitize `html` before putting it in `RenderedCardDto.Html`.
 
-### Step D — Implement `KBotQuestionService`
+### Step E — Implement `KBotQuestionService`
 
 File: [Services/KBotQuestionService.cs](backend/Smartboard.Api/Services/KBotQuestionService.cs)
 
 ```csharp
-// Maps KBotQuestionSummary[] → QuestionSummaryDto(questionId, difficulty, preview)[]
-public async Task<IReadOnlyList<QuestionSummaryDto>> GetQuestionsAsync(long topicId, string? difficulty, CancellationToken ct)
+// GET /topic/{slug}/questions?difficulty={1-5}&preview=true → QuestionSummaryDto[]
+// KBot: [{ "id": 893, "question_type": "fill_blank", "difficulty": 2, "preview": "...", "source": "ncert_exercise" }]
+public async Task<IReadOnlyList<QuestionSummaryDto>> GetQuestionsAsync(string slug, int? difficulty, CancellationToken ct)
 
-// Maps KBotQuestion → QuestionDto(questionId, body, difficulty)
+// GET /questions/{question_id} → QuestionDto
+// KBot: { "question_id": 893, "question_text": "...", "question_type": "fill_blank", "options": [...], "answer_text": "...", "difficulty": 2, "source": "ncert_exercise", "is_verified": false }
 public async Task<QuestionDto?> GetQuestionAsync(long questionId, CancellationToken ct)
 
-// Maps KBotExplanation → BasicExplanationDto(questionId, explanation)
-public async Task<BasicExplanationDto?> GetBasicExplanationAsync(long questionId, CancellationToken ct)
+// GET /questions/{question_id}/explanation → ExplanationDto
+// KBot: { "question_id": 893, "html": "<div class=\"kbot-card\">...</div>", "version_id": 893 }
+public async Task<ExplanationDto?> GetExplanationAsync(long questionId, CancellationToken ct)
 
-// Maps KBotSolvedCard → SolvedCardDto(questionId, stepByStepHtml, versionId)
-// MUST sanitize stepByStepHtml before returning
+// GET /questions/{question_id}/solved-card → SolvedCardDto
+// KBot: { "question_id": 893, "html": "<div class=\"kbot-card\">...</div>", "version_id": 893 }
+// MUST sanitize html before returning
 public async Task<SolvedCardDto?> GetSolvedCardAsync(long questionId, CancellationToken ct)
+
+// POST /topic/{slug}/questions/submit → QuestionSubmitResponseDto
+// Body: { "source": "smartboard_llm", "questions": [{ "question_text": "...", "question_type": "mcq", "difficulty": 2, ... }] }
+// KBot: { "submitted": 1, "question_ids": [1205] }
+public async Task<QuestionSubmitResponseDto> SubmitQuestionsAsync(string slug, QuestionSubmitRequestDto request, CancellationToken ct)
 ```
 
-### Step E — Exact JSON the frontend expects
+### Step F — Exact JSON the Smartboard API returns to the frontend
 
-The Smartboard frontend calls these. **Do not rename fields** — TypeScript types match these exactly.
+**Do not rename fields** — the TypeScript types already match these shapes.
 
 ```
-GET /api/smartboard/kbot/topics/201/content-cards
-→ [{ "cardId": 1001, "title": "Introduction to Fractions", "versionCount": 2 }, ...]
+GET /api/smartboard/kbot/topics/g11_units_measurement/cards
+→ { "slug": "g11_units_measurement", "title": "...", "cards": [
+     { "level": "L0", "exists": true, "cardId": 54, "currentVersionId": 54, "versionCount": 1, "isPublished": false, "isStale": true },
+     { "level": "L1", "exists": false, "cardId": null, ... }
+   ]}
 
-GET /api/smartboard/kbot/content-cards/1001/versions
-→ [{ "cardId": 1001, "versionId": 1, "label": "v1 — Original", "updatedAt": "2025-06-01T00:00:00Z" }, ...]
+GET /api/smartboard/kbot/content-cards/54/render?versionId=54
+→ { "cardId": 54, "versionId": 54, "html": "<div class=\"kbot-card\">...</div>",
+    "viewportWidth": 1920, "viewportHeight": 1080, "eTag": "\"54-3a7b2c1d\"" }
 
-GET /api/smartboard/kbot/content-cards/1001/render?versionId=2
-→ { "cardId": 1001, "versionId": 2, "html": "<div>...</div>", "viewportWidth": 1920, "viewportHeight": 1080, "eTag": "abc123" }
+GET /api/smartboard/kbot/topics/g11_units_measurement/questions?difficulty=2
+→ [{ "questionId": 893, "questionType": "fill_blank", "difficulty": 2, "preview": "Fill in the blanks...", "source": "ncert_exercise" }]
 
-GET /api/smartboard/kbot/topics/201/questions?difficulty=easy
-→ [{ "questionId": 5001, "difficulty": "easy", "preview": "What is ½ + ¼?" }, ...]
+GET /api/smartboard/kbot/questions/893
+→ { "questionId": 893, "questionText": "Fill in the blanks...", "questionType": "fill_blank",
+    "options": null, "answerText": "10⁻⁶ m³", "difficulty": 2, "source": "ncert_exercise", "isVerified": false }
 
-GET /api/smartboard/kbot/questions/5001
-→ { "questionId": 5001, "body": "What is ½ + ¼?", "difficulty": "easy" }
+GET /api/smartboard/kbot/questions/893/explanation
+→ { "questionId": 893, "html": "<div class=\"kbot-card\">...</div>", "versionId": 893 }
 
-GET /api/smartboard/kbot/questions/5001/basic-explanation
-→ { "questionId": 5001, "explanation": "Find a common denominator..." }
-
-GET /api/smartboard/kbot/questions/5001/solved-card
-→ { "questionId": 5001, "stepByStepHtml": "<ol>...</ol>", "versionId": 1 }
+POST /api/smartboard/kbot/topics/g11_units_measurement/questions/submit
+→ { "submitted": 1, "questionIds": [1205] }
 ```
 
-### Step F — Dev mode (so Parivesh can work without KBot running)
+### Step G — Dev mode (Parivesh's sandbox)
 
-A `DevKBotContentService` already exists in [Services/Dev/DevKBotContentService.cs](backend/Smartboard.Api/Services/Dev/DevKBotContentService.cs) with realistic seed data — it is used automatically in Development mode. You do not need to touch it. Once your `KBotContentService` is implemented, Production mode will use it instead.
+Dev services already implement the full interface with realistic seed data:
+- [Services/Dev/DevKBotContentService.cs](backend/Smartboard.Api/Services/Dev/DevKBotContentService.cs) — 4 cards at L0–L3 for any slug  
+- [Services/Dev/DevKBotQuestionService.cs](backend/Smartboard.Api/Services/Dev/DevKBotQuestionService.cs) — 5 questions with full detail  
+- [Services/Dev/DevKBotCurriculumService.cs](backend/Smartboard.Api/Services/Dev/DevKBotCurriculumService.cs) — CBSE boards, grades 9–12, 4 subjects, 4 chapters, 4 topics
+
+You do not touch these. Production mode auto-uses your real implementations.
 
 ---
 
