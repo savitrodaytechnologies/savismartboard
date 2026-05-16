@@ -137,5 +137,5 @@ public sealed record LoginRequest(int SchoolId, string UserId, string Password);
 public sealed record LoginResponse(string Token, int ExpiresIn, string Name, string SchoolName, string Curriculum);
 public sealed record DevTokenResponse(string Token, int ExpiresIn, string Note);
 
-file sealed record HardcodedUser(int SchoolId, string UserId, string PasswordHash,
+internal sealed record HardcodedUser(int SchoolId, string UserId, string PasswordHash,
     int TeacherId, string Name, string SchoolName, string Curriculum);
