@@ -311,7 +311,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         return null;
     };
 
-// ── Scrollbar geometry (derived, not state) ────────────────────────────────
+    // ── Scrollbar geometry (derived, not state) ────────────────────────────────
     const SB = 6; // scrollbar track thickness in px
     const hTrackW = containerW - SB;
     const worldLeft = -stagePos.x / stageScale;
@@ -333,7 +333,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 toolState.tool === 'text' ? 'text' : 'crosshair';
 
     return (
-        <div ref={containerRef} className="relative flex-1 bg-slate-950 overflow-hidden">
+        <div ref={containerRef} className="relative flex-1 bg-neutral-50 overflow-hidden">
 
             {/* HTML background (KBot card) — transformed with stage */}
             {page.background.kind === 'html' && page.background.html && (
@@ -393,7 +393,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             </Stage>
 
             {/* Zoom controls — floating bottom-right, above scrollbar corner */}
-            <div className="absolute bottom-10 right-10 z-10 flex items-center gap-0.5 rounded-lg bg-slate-800/90 backdrop-blur-sm px-1.5 py-1 text-white shadow-lg select-none">
+            <div className="absolute bottom-10 right-10 z-10 flex items-center gap-0.5 rounded-lg bg-slate-700/80 backdrop-blur-sm px-1.5 py-1 text-white shadow-lg select-none">
                 <button
                     onClick={() => zoomBy(1 / ZOOM_STEP)}
                     className="w-7 h-7 rounded hover:bg-slate-600 flex items-center justify-center text-lg font-bold leading-none"
@@ -413,11 +413,11 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
             {/* Horizontal scrollbar (bottom) */}
             <div
-                className="absolute bottom-0 left-0 z-20 bg-slate-900/60"
+                className="absolute bottom-0 left-0 z-20 bg-slate-200/60"
                 style={{ width: hTrackW, height: SB }}
             >
                 <div
-                    className="absolute top-0.5 rounded-full bg-slate-400/50 hover:bg-slate-300/70 cursor-default transition-colors"
+                    className="absolute top-0.5 rounded-full bg-slate-400/70 hover:bg-slate-500/80 cursor-default transition-colors"
                     style={{ left: hThumbLeft, width: hThumbW, height: SB - 2 }}
                     onMouseDown={e => {
                         e.preventDefault();
@@ -436,11 +436,11 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
             {/* Vertical scrollbar (right) */}
             <div
-                className="absolute right-0 top-0 z-20 bg-slate-900/60"
+                className="absolute right-0 top-0 z-20 bg-slate-200/60"
                 style={{ width: SB, height: vTrackH }}
             >
                 <div
-                    className="absolute left-0.5 rounded-full bg-slate-400/50 hover:bg-slate-300/70 cursor-default transition-colors"
+                    className="absolute left-0.5 rounded-full bg-slate-400/70 hover:bg-slate-500/80 cursor-default transition-colors"
                     style={{ top: vThumbTop, height: vThumbH, width: SB - 2 }}
                     onMouseDown={e => {
                         e.preventDefault();
@@ -458,7 +458,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             </div>
 
             {/* Corner square */}
-            <div className="absolute right-0 bottom-0 z-20 bg-slate-900/60" style={{ width: SB, height: SB }} />
+            <div className="absolute right-0 bottom-0 z-20 bg-slate-200/60" style={{ width: SB, height: SB }} />
         </div>
     );
 }
