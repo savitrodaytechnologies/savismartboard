@@ -16,6 +16,12 @@ const MIN_SCALE = 0.05;
 const MAX_SCALE = 10;
 const ZOOM_STEP = 1.15;
 
+// ─── virtual world extent for scrollbars ─────────────────────────────────────
+// The canvas is infinite but scrollbars represent a practical ±10 000 px window.
+const VIRT_W = 20000;
+const VIRT_H = 20000;
+const VIRT_ORIGIN = -10000; // world coord that maps to thumb position 0
+
 // ─── props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -64,6 +70,17 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const [spaceDown, setSpaceDown] = useState(false);
     const spaceRef = useRef(false);
 
+    // Scrollbar drag state
+    const scrollDragRef = useRef<{
+        axis: 'h' | 'v';
+        startClient: number;
+        startStagePos: number; // stagePos.x or stagePos.y at drag start
+        startStageScale: number;
+        trackPx: number;       // track length in screen px
+        thumbPx: number;       // thumb length in screen px at drag start
+        worldView: number;     // containerW or containerH / scale at drag start
+    } | null>(null);
+
     // Space bar → pan mode overlay
     useEffect(() => {
         const onDown = (e: KeyboardEvent) => {
@@ -84,6 +101,31 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         return () => {
             window.removeEventListener('keydown', onDown);
             window.removeEventListener('keyup', onUp);
+        };
+    }, []);
+
+    // Window-level mouse handlers for scrollbar thumb drag
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            const d = scrollDragRef.current;
+            if (!d) return;
+            const delta = (d.axis === 'h' ? e.clientX : e.clientY) - d.startClient;
+            const trackRange = d.trackPx - d.thumbPx;
+            if (trackRange <= 0) return;
+            const virtSize = d.axis === 'h' ? VIRT_W : VIRT_H;
+            const worldRange = virtSize - d.worldView;
+            const deltaWorld = (delta / trackRange) * worldRange;
+            const newPos = d.startStagePos - deltaWorld * d.startStageScale;
+            setStagePos(prev =>
+                d.axis === 'h' ? { ...prev, x: newPos } : { ...prev, y: newPos }
+            );
+        };
+        const onUp = () => { scrollDragRef.current = null; };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        return () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
         };
     }, []);
 
@@ -269,10 +311,26 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         return null;
     };
 
+// ── Scrollbar geometry (derived, not state) ────────────────────────────────
+    const SB = 6; // scrollbar track thickness in px
+    const hTrackW = containerW - SB;
+    const worldLeft = -stagePos.x / stageScale;
+    const worldViewW = containerW / stageScale;
+    const hThumbW = Math.max(24, Math.min(hTrackW, hTrackW * worldViewW / VIRT_W));
+    const hThumbLeft = Math.max(0, Math.min(hTrackW - hThumbW,
+        (worldLeft - VIRT_ORIGIN) / (VIRT_W - worldViewW) * (hTrackW - hThumbW)));
+
+    const vTrackH = containerH - SB;
+    const worldTop = -stagePos.y / stageScale;
+    const worldViewH = containerH / stageScale;
+    const vThumbH = Math.max(24, Math.min(vTrackH, vTrackH * worldViewH / VIRT_H));
+    const vThumbTop = Math.max(0, Math.min(vTrackH - vThumbH,
+        (worldTop - VIRT_ORIGIN) / (VIRT_H - worldViewH) * (vTrackH - vThumbH)));
+
     const cursor =
         isPanTool || spaceDown ? 'grab' :
-        toolState.tool === 'eraser' ? 'crosshair' :
-        toolState.tool === 'text' ? 'text' : 'crosshair';
+            toolState.tool === 'eraser' ? 'crosshair' :
+                toolState.tool === 'text' ? 'text' : 'crosshair';
 
     return (
         <div ref={containerRef} className="relative flex-1 bg-slate-950 overflow-hidden">
@@ -334,8 +392,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 </Layer>
             </Stage>
 
-            {/* Zoom controls — floating bottom-right, above offline indicator */}
-            <div className="absolute bottom-16 right-4 z-10 flex items-center gap-0.5 rounded-lg bg-slate-800/90 backdrop-blur-sm px-1.5 py-1 text-white shadow-lg select-none">
+            {/* Zoom controls — floating bottom-right, above scrollbar corner */}
+            <div className="absolute bottom-10 right-10 z-10 flex items-center gap-0.5 rounded-lg bg-slate-800/90 backdrop-blur-sm px-1.5 py-1 text-white shadow-lg select-none">
                 <button
                     onClick={() => zoomBy(1 / ZOOM_STEP)}
                     className="w-7 h-7 rounded hover:bg-slate-600 flex items-center justify-center text-lg font-bold leading-none"
@@ -352,6 +410,55 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                     title="Zoom in (scroll ↑)"
                 >+</button>
             </div>
+
+            {/* Horizontal scrollbar (bottom) */}
+            <div
+                className="absolute bottom-0 left-0 z-20 bg-slate-900/60"
+                style={{ width: hTrackW, height: SB }}
+            >
+                <div
+                    className="absolute top-0.5 rounded-full bg-slate-400/50 hover:bg-slate-300/70 cursor-default transition-colors"
+                    style={{ left: hThumbLeft, width: hThumbW, height: SB - 2 }}
+                    onMouseDown={e => {
+                        e.preventDefault();
+                        scrollDragRef.current = {
+                            axis: 'h',
+                            startClient: e.clientX,
+                            startStagePos: stagePos.x,
+                            startStageScale: stageScale,
+                            trackPx: hTrackW,
+                            thumbPx: hThumbW,
+                            worldView: worldViewW,
+                        };
+                    }}
+                />
+            </div>
+
+            {/* Vertical scrollbar (right) */}
+            <div
+                className="absolute right-0 top-0 z-20 bg-slate-900/60"
+                style={{ width: SB, height: vTrackH }}
+            >
+                <div
+                    className="absolute left-0.5 rounded-full bg-slate-400/50 hover:bg-slate-300/70 cursor-default transition-colors"
+                    style={{ top: vThumbTop, height: vThumbH, width: SB - 2 }}
+                    onMouseDown={e => {
+                        e.preventDefault();
+                        scrollDragRef.current = {
+                            axis: 'v',
+                            startClient: e.clientY,
+                            startStagePos: stagePos.y,
+                            startStageScale: stageScale,
+                            trackPx: vTrackH,
+                            thumbPx: vThumbH,
+                            worldView: worldViewH,
+                        };
+                    }}
+                />
+            </div>
+
+            {/* Corner square */}
+            <div className="absolute right-0 bottom-0 z-20 bg-slate-900/60" style={{ width: SB, height: SB }} />
         </div>
     );
 }
