@@ -171,4 +171,28 @@ public sealed class SmartboardSessionRepository : ISmartboardSessionRepository
             new { SessionId = sessionId, SchoolId = schoolId, TeacherId = teacherId },
             cancellationToken: ct));
     }
+
+    public async Task DeleteSessionAsync(int schoolId, int teacherId, long sessionId, CancellationToken ct = default)
+    {
+        const string deletePagesSql = """
+            DELETE p
+            FROM   dbo.SmartboardSessionPage p
+            INNER JOIN dbo.SmartboardSession s ON s.SessionId = p.SessionId
+            WHERE  p.SessionId = @SessionId
+              AND  s.SchoolId  = @SchoolId
+              AND  s.TeacherId = @TeacherId;
+            """;
+
+        const string deleteSessionSql = """
+            DELETE FROM dbo.SmartboardSession
+            WHERE  SessionId = @SessionId
+              AND  SchoolId  = @SchoolId
+              AND  TeacherId = @TeacherId;
+            """;
+
+        var p = new { SessionId = sessionId, SchoolId = schoolId, TeacherId = teacherId };
+        using var conn = _db.Create();
+        await conn.ExecuteAsync(new CommandDefinition(deletePagesSql, p, cancellationToken: ct));
+        await conn.ExecuteAsync(new CommandDefinition(deleteSessionSql, p, cancellationToken: ct));
+    }
 }
