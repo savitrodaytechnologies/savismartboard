@@ -24,6 +24,8 @@ export default function TeacherDashboardPage() {
     const [sessionsLoading, setSessionsLoading] = useState(true);
 
     const [starting, setStarting] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<{ sessionId: number; title: string } | null>(null);
+    const [deleting, setDeleting] = useState(false);
     async function loadLocalSessions() {
         const locals = await db.sessions.orderBy('updatedAt').reverse().limit(10).toArray();
         setRecentSessions(locals.map(s => ({
@@ -67,6 +69,26 @@ export default function TeacherDashboardPage() {
             .then((data: TopicDto[]) => setTopics(data))
             .catch(() => setTopics([]));
     }, [selectedSubject, selectedClass]);
+
+    async function handleDeleteConfirmed() {
+        if (!deleteTarget) return;
+        setDeleting(true);
+        try {
+            const id = deleteTarget.sessionId;
+            if (isOnline) {
+                await smartboardSessionService.delete(id);
+            }
+            // Always remove from local DB
+            await db.sessions.delete(id as unknown as string);
+            await db.pages.where('sessionId').equals(id as unknown as number).delete();
+            setRecentSessions(prev => prev.filter(s => s.sessionId !== id));
+        } catch {
+            // swallow — session may already be gone
+        } finally {
+            setDeleting(false);
+            setDeleteTarget(null);
+        }
+    }
 
     async function handleStartSession() {
         if (!selectedClass || !selectedSubject) return;
@@ -235,6 +257,7 @@ export default function TeacherDashboardPage() {
                                                 </span>
                                             </td>
                                             <td className="py-2 text-right">
+                                                <div className="flex items-center justify-end gap-1">
                                                 <button
                                                     onClick={() => navigate(`/session/${s.sessionId}`)}
                                                     className={`rounded px-3 py-1 text-xs font-semibold transition-colors ${s.status === 'InProgress'
@@ -244,6 +267,12 @@ export default function TeacherDashboardPage() {
                                                 >
                                                     {s.status === 'InProgress' ? 'Continue' : 'View'}
                                                 </button>
+                                                <button
+                                                    onClick={() => setDeleteTarget({ sessionId: s.sessionId, title: s.sessionTitle ?? `Session #${s.sessionId}` })}
+                                                    className="rounded px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-50 transition-colors"
+                                                    title="Delete session"
+                                                >🗑</button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -253,6 +282,36 @@ export default function TeacherDashboardPage() {
                     )}
                 </div>
             </div>
+        </div>
+
+            {/* ── Delete confirmation modal ──────────────────────────── */}
+            {deleteTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+                        <h3 className="text-base font-semibold text-slate-800 mb-2">Delete Session?</h3>
+                        <p className="text-sm text-slate-500 mb-5">
+                            <span className="font-medium text-slate-700">&ldquo;{deleteTarget.title}&rdquo;</span> will be permanently deleted.
+                            This cannot be undone.
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setDeleteTarget(null)}
+                                disabled={deleting}
+                                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteConfirmed}
+                                disabled={deleting}
+                                className="rounded-lg px-4 py-2 text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-60"
+                            >
+                                {deleting ? 'Deleting…' : 'Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

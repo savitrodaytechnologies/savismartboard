@@ -12,6 +12,7 @@ public interface ISmartboardSessionRepository
     Task<IReadOnlyList<SessionDto>> GetRecentSessionsAsync(int schoolId, int teacherId, CancellationToken ct = default);
     Task UpsertPageAsync(int schoolId, int teacherId, long sessionId, SavePageRequest req, CancellationToken ct = default);
     Task EndSessionAsync(int schoolId, int teacherId, long sessionId, CancellationToken ct = default);
+    Task DeleteSessionAsync(int schoolId, int teacherId, long sessionId, CancellationToken ct = default);
 }
 
 public sealed class SmartboardSessionRepository : ISmartboardSessionRepository

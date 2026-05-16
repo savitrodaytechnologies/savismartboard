@@ -38,6 +38,13 @@ public sealed class SmartboardSessionController : ControllerBase
         return NoContent();
     }
 
+    [HttpDelete("{sessionId:long}")]
+    public async Task<IActionResult> Delete(long sessionId, CancellationToken ct)
+    {
+        await _svc.DeleteAsync(sessionId, ct);
+        return NoContent();
+    }
+
     [HttpPost("{sessionId:long}/export")]
     public async Task<IActionResult> Export(long sessionId, [FromBody] ExportRequest req, CancellationToken ct)
         => Ok(new { url = await _svc.ExportAsync(sessionId, req, ct) });
