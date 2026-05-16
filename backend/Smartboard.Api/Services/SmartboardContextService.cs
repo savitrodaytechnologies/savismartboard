@@ -83,7 +83,7 @@ public sealed class SmartboardContextService : ISmartboardContextService
             if (!topicResp.IsSuccessStatusCode) continue;
             var raw = JsonSerializer.Deserialize<KBotTopicR[]>(await topicResp.Content.ReadAsStringAsync(ct), _json);
             if (raw is null) continue;
-            topics.AddRange(raw.Select(t => new TopicDto(t.Id, $"Ch {ch.ChapterNumber}: {t.Title}", subjectId)));
+            topics.AddRange(raw.Select(t => new TopicDto(t.Id, $"Ch {ch.ChapterNumber}: {t.Title}", subjectId, t.Slug)));
         }
         return topics;
     }

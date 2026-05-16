@@ -93,6 +93,7 @@ export default function TeacherDashboardPage() {
         const params = new URLSearchParams({
             classId: String(selectedClass.classId),
             subjectId: String(selectedSubject.subjectId),
+            slug: selectedTopic.slug,
             title: `${selectedSubject.name} — ${selectedTopic.name}`,
         });
         navigate(`/teach/${selectedTopic.topicId}?${params.toString()}`);

@@ -1,4 +1,3 @@
-// Owner: Parivesh (Smartboard core) — composes KBot list (Mukesh) + canvas (Parivesh)
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { kbotContentService } from '@/services/kbotContentService';
@@ -6,19 +5,20 @@ import { kbotQuestionService } from '@/services/kbotQuestionService';
 import { startSessionOfflineFirst } from '@/services/sessionStartService';
 import { db, pageKey } from '@/db/localDb';
 import { enqueue, processQueue } from '@/services/syncService';
-import type { ContentCardSummary, RenderedCard, QuestionSummary } from '@/types';
+import type { CardLevelStatus, RenderedCard, QuestionSummary } from '@/types';
 
 export default function TopicTeachingPage() {
     const { topicId } = useParams<{ topicId: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const tid = Number(topicId);
+    const slug = searchParams.get('slug') ?? '';
 
     const sessionTitle = searchParams.get('title') ?? `Topic ${tid}`;
     const subjectId = Number(searchParams.get('subjectId') ?? 0);
     const classId = Number(searchParams.get('classId') ?? 0);
 
-    const [cards, setCards] = useState<ContentCardSummary[]>([]);
+    const [cards, setCards] = useState<CardLevelStatus[]>([]);
     const [questions, setQuestions] = useState<QuestionSummary[]>([]);
     const [activeTab, setActiveTab] = useState<'cards' | 'questions'>('cards');
     const [loading, setLoading] = useState(true);
@@ -28,11 +28,12 @@ export default function TopicTeachingPage() {
 
     useEffect(() => {
         setLoading(true);
+        if (!slug) { setLoading(false); return; }
         Promise.all([
-            kbotContentService.list(tid).catch(() => [] as ContentCardSummary[]),
-            kbotQuestionService.list(tid).catch(() => [] as QuestionSummary[]),
+            kbotContentService.topicCards(slug).then(t => t.cards.filter(c => c.exists)).catch(() => [] as CardLevelStatus[]),
+            kbotQuestionService.list(slug).catch(() => [] as QuestionSummary[]),
         ]).then(([c, q]) => { setCards(c); setQuestions(q); setLoading(false); });
-    }, [tid]);
+    }, [slug]);
 
     async function previewContent(cardId: number, versionId: number) {
         setPreviewLoading(true);
@@ -67,8 +68,9 @@ export default function TopicTeachingPage() {
         }
     }
 
-    const diffColor = (d: string) =>
-        d === 'Easy' ? 'text-green-600 bg-green-50' : d === 'Hard' ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50';
+    const diffColor = (d: number) =>
+        d <= 2 ? 'text-green-600 bg-green-50' : d >= 4 ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50';
+    const diffLabel = (d: number) => d <= 2 ? 'Easy' : d >= 4 ? 'Hard' : 'Medium';
 
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -98,13 +100,17 @@ export default function TopicTeachingPage() {
                     {loading && <p className="p-4 text-sm text-slate-400">Loading…</p>}
 
                     {!loading && activeTab === 'cards' && cards.map(c => (
-                        <div key={c.cardId} className="border-b border-slate-100 last:border-0">
+                        <div key={c.level} className="border-b border-slate-100 last:border-0">
                             <button
-                                onClick={() => previewContent(c.cardId, c.versionCount > 0 ? c.versionCount : 1)}
+                                onClick={() => previewContent(c.cardId!, c.currentVersionId!)}
                                 className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
                             >
-                                <p className="text-sm font-medium text-slate-800 truncate">{c.title}</p>
-                                <p className="text-xs text-slate-400 mt-0.5">{c.versionCount} version{c.versionCount !== 1 ? 's' : ''}</p>
+                                <p className="text-sm font-medium text-slate-800">{c.level} Teaching Card</p>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    {c.versionCount ?? 1} version{(c.versionCount ?? 1) !== 1 ? 's' : ''}
+                                    {c.isStale && <span className="ml-2 text-amber-500">stale</span>}
+                                    {c.isPublished && <span className="ml-2 text-green-500">published</span>}
+                                </p>
                             </button>
                         </div>
                     ))}
@@ -114,7 +120,7 @@ export default function TopicTeachingPage() {
                             <div className="px-4 py-3">
                                 <div className="flex items-start gap-2">
                                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0 ${diffColor(q.difficulty)}`}>
-                                        {q.difficulty}
+                                        {diffLabel(q.difficulty)}
                                     </span>
                                     <p className="text-sm text-slate-700 line-clamp-2">{q.preview}</p>
                                 </div>

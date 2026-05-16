@@ -9,4 +9,4 @@ public sealed record TeacherContextDto(
 public sealed record ClassDto(int ClassId, string Name);
 public sealed record SectionDto(int SectionId, string Name);
 public sealed record SubjectDto(int SubjectId, string Name);
-public sealed record TopicDto(int TopicId, string Name, int SubjectId);
+public sealed record TopicDto(int TopicId, string Name, int SubjectId, string Slug = "");
