@@ -81,18 +81,6 @@ export default function SmartboardSessionPage() {
 
     return (
         <div className="flex flex-col h-screen bg-slate-950 overflow-hidden">
-            <CanvasToolbar
-                toolState={toolState}
-                onChange={patch => setToolState(prev => ({ ...prev, ...patch }))}
-                onUndo={handleUndo}
-                onRedo={handleRedo}
-                onClear={handleClear}
-                onEndSession={handleEndSession}
-                canUndo={(undoStacks[currentPageIndex]?.length ?? 0) > 0}
-                canRedo={(redoStacks[currentPageIndex]?.length ?? 0) > 0}
-                sessionTitle={`Session #${id}`}
-            />
-
             {currentPage && (
                 <WhiteboardCanvas
                     page={currentPage}
@@ -111,6 +99,18 @@ export default function SmartboardSessionPage() {
                 onSelect={setCurrentPageIndex}
                 onAdd={() => addPage()}
                 onDelete={deletePage}
+            />
+
+            <CanvasToolbar
+                toolState={toolState}
+                onChange={patch => setToolState(prev => ({ ...prev, ...patch }))}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                onClear={handleClear}
+                onEndSession={handleEndSession}
+                canUndo={(undoStacks[currentPageIndex]?.length ?? 0) > 0}
+                canRedo={(redoStacks[currentPageIndex]?.length ?? 0) > 0}
+                sessionTitle={`Session #${id}`}
             />
         </div>
     );

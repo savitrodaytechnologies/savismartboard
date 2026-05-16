@@ -392,8 +392,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 </Layer>
             </Stage>
 
-            {/* Zoom controls — floating bottom-right, above scrollbar corner */}
-            <div className="absolute bottom-10 right-10 z-10 flex items-center gap-0.5 rounded-lg bg-slate-700/80 backdrop-blur-sm px-1.5 py-1 text-white shadow-lg select-none">
+            {/* Zoom controls — floating top-right */}
+            <div className="absolute top-3 right-10 z-10 flex items-center gap-0.5 rounded-lg bg-slate-700/80 backdrop-blur-sm px-1.5 py-1 text-white shadow-lg select-none">
                 <button
                     onClick={() => zoomBy(1 / ZOOM_STEP)}
                     className="w-7 h-7 rounded hover:bg-slate-600 flex items-center justify-center text-lg font-bold leading-none"
