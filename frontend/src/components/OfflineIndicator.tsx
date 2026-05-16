@@ -37,10 +37,10 @@ export default function OfflineIndicator() {
         runSync();
     }, [online]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Retry every 30 s while there are pending items
+    // Retry every 5 s while there are pending items
     useEffect(() => {
         if (!online || pending === 0) return;
-        const id = setInterval(() => { void runSync(); }, 30_000);
+        const id = setInterval(() => { void runSync(); }, 5_000);
         return () => clearInterval(id);
     }, [online, pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
