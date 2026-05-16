@@ -184,6 +184,12 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             onRedoClear();
             setActivePoints([x, y]);
         } else if (['rect', 'circle', 'arrow'].includes(toolState.tool)) {
+            isDrawing.current = true;
+            onUndoPush([...page.annotations]);
+            onRedoClear();
+            setShapeStart({ x, y });
+            setPreviewShape({ x, y, w: 0, h: 0 });
+        }
     }, [toolState.tool, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear, isPanTool]);
 
     const handleMouseMove = useCallback((e: KonvaEventObject<MouseEvent>) => {
