@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
+import LoginPage, { isLoggedIn } from '@/pages/LoginPage';
 import TeacherDashboardPage from '@/pages/TeacherDashboardPage';
 import TopicTeachingPage from '@/pages/TopicTeachingPage';
 import SmartboardSessionPage from '@/pages/SmartboardSessionPage';
@@ -19,14 +20,20 @@ function PwaUpdateBanner() {
     );
 }
 
+function RequireAuth({ children }: { children: React.ReactNode }) {
+    if (!isLoggedIn()) return <Navigate to="/login" replace />;
+    return <>{children}</>;
+}
+
 export default function App() {
     return (
         <>
             <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<TeacherDashboardPage />} />
-                <Route path="/teach/:topicId" element={<TopicTeachingPage />} />
-                <Route path="/session/:sessionId" element={<SmartboardSessionPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/" element={<Navigate to={isLoggedIn() ? '/dashboard' : '/login'} replace />} />
+                <Route path="/dashboard" element={<RequireAuth><TeacherDashboardPage /></RequireAuth>} />
+                <Route path="/teach/:topicId" element={<RequireAuth><TopicTeachingPage /></RequireAuth>} />
+                <Route path="/session/:sessionId" element={<RequireAuth><SmartboardSessionPage /></RequireAuth>} />
             </Routes>
             <OfflineIndicator />
             <PwaUpdateBanner />
