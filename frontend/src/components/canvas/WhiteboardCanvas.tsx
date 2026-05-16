@@ -11,30 +11,10 @@ import {
     buildShapeAnnotation,
 } from './CanvasToolbar';
 
-// ─── canvas dimensions (logical / design space) ──────────────────────────────
-const DESIGN_W = 1280;
-const DESIGN_H = 720;
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-interface UseScaleResult { scale: number; offsetX: number; offsetY: number }
-
-function useContainerScale(containerRef: React.RefObject<HTMLDivElement | null>): UseScaleResult {
-    const [size, setSize] = useState<UseScaleResult>({ scale: 1, offsetX: 0, offsetY: 0 });
-
-    useEffect(() => {
-        if (!containerRef.current) return;
-        const obs = new ResizeObserver(entries => {
-            const { width, height } = entries[0].contentRect;
-            const scale = Math.min(width / DESIGN_W, height / DESIGN_H);
-            setSize({ scale, offsetX: (width - DESIGN_W * scale) / 2, offsetY: (height - DESIGN_H * scale) / 2 });
-        });
-        obs.observe(containerRef.current);
-        return () => obs.disconnect();
-    }, [containerRef]);
-
-    return size;
-}
+// ─── zoom limits ─────────────────────────────────────────────────────────────
+const MIN_SCALE = 0.05;
+const MAX_SCALE = 10;
+const ZOOM_STEP = 1.15;
 
 // ─── props ────────────────────────────────────────────────────────────────────
 
@@ -52,7 +32,25 @@ interface Props {
 
 export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const { scale, offsetX, offsetY } = useContainerScale(containerRef);
+    const stageRef = useRef<Konva.Stage>(null);
+
+    // Container pixel size (updated on resize)
+    const [containerW, setContainerW] = useState(1280);
+    const [containerH, setContainerH] = useState(720);
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const obs = new ResizeObserver(entries => {
+            const { width, height } = entries[0].contentRect;
+            setContainerW(width);
+            setContainerH(height);
+        });
+        obs.observe(containerRef.current);
+        return () => obs.disconnect();
+    }, []);
+
+    // Viewport transform: pan offset + zoom scale
+    const [stageScale, setStageScale] = useState(1);
+    const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
 
     // In-progress stroke
     const [activePoints, setActivePoints] = useState<number[]>([]);
@@ -60,15 +58,77 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const [previewShape, setPreviewShape] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
     const isDrawing = useRef(false);
 
-    // Convert event to logical coordinates (unscaled)
-    const toLogical = useCallback((e: KonvaEventObject<MouseEvent | TouchEvent>): { x: number; y: number } => {
-        const stage = e.target.getStage()!;
-        const ptr = stage.getPointerPosition()!;
-        return { x: (ptr.x - offsetX) / scale, y: (ptr.y - offsetY) / scale };
-    }, [scale, offsetX, offsetY]);
+    // Pan state
+    const isPanning = useRef(false);
+    const lastPanClient = useRef<{ x: number; y: number } | null>(null);
+    const [spaceDown, setSpaceDown] = useState(false);
+    const spaceRef = useRef(false);
 
+    // Space bar → pan mode overlay
+    useEffect(() => {
+        const onDown = (e: KeyboardEvent) => {
+            if (e.code === 'Space' && !e.repeat) {
+                e.preventDefault();
+                spaceRef.current = true;
+                setSpaceDown(true);
+            }
+        };
+        const onUp = (e: KeyboardEvent) => {
+            if (e.code === 'Space') {
+                spaceRef.current = false;
+                setSpaceDown(false);
+            }
+        };
+        window.addEventListener('keydown', onDown);
+        window.addEventListener('keyup', onUp);
+        return () => {
+            window.removeEventListener('keydown', onDown);
+            window.removeEventListener('keyup', onUp);
+        };
+    }, []);
+
+    const isPanTool = toolState.tool === 'select';
+
+    // World coordinate from the stage's current pointer position
+    const getWorldPos = useCallback((stage: Konva.Stage): { x: number; y: number } => {
+        const ptr = stage.getPointerPosition()!;
+        return {
+            x: (ptr.x - stage.x()) / stage.scaleX(),
+            y: (ptr.y - stage.y()) / stage.scaleY(),
+        };
+    }, []);
+
+    // ── Zoom (mouse wheel, centered on pointer) ──────────────────────────────
+    const handleWheel = useCallback((e: KonvaEventObject<WheelEvent>) => {
+        e.evt.preventDefault();
+        const stage = stageRef.current;
+        if (!stage) return;
+
+        const oldScale = stage.scaleX();
+        const ptr = stage.getPointerPosition()!;
+        const direction = e.evt.deltaY < 0 ? 1 : -1;
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale * (direction > 0 ? ZOOM_STEP : 1 / ZOOM_STEP)));
+
+        // Keep the world point under the pointer fixed
+        const wx = (ptr.x - stage.x()) / oldScale;
+        const wy = (ptr.y - stage.y()) / oldScale;
+        setStageScale(newScale);
+        setStagePos({ x: ptr.x - wx * newScale, y: ptr.y - wy * newScale });
+    }, []);
+
+    // ── Mouse events ─────────────────────────────────────────────────────────
     const handleMouseDown = useCallback((e: KonvaEventObject<MouseEvent>) => {
-        const { x, y } = toLogical(e);
+        const stage = e.target.getStage()!;
+        // Middle mouse, space+left, or pan tool → begin panning
+        if (e.evt.button === 1 || spaceRef.current || isPanTool) {
+            isPanning.current = true;
+            lastPanClient.current = { x: e.evt.clientX, y: e.evt.clientY };
+            return;
+        }
+        if (e.evt.button !== 0) return;
+
+        const { x, y } = getWorldPos(stage);
+
         if (toolState.tool === 'pen' || toolState.tool === 'highlighter') {
             isDrawing.current = true;
             onUndoPush([...page.annotations]);
@@ -81,30 +141,51 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             setShapeStart({ x, y });
             setPreviewShape({ x, y, w: 0, h: 0 });
         } else if (toolState.tool === 'eraser') {
-            const target = e.target as Konva.Node;
-            const id = target.id();
+            const id = (e.target as Konva.Node).id();
             if (id) {
                 onUndoPush([...page.annotations]);
                 onRedoClear();
                 onCommit(prev => prev.filter(a => a.id !== id));
             }
         }
-    }, [toolState.tool, toLogical, page.annotations, onCommit, onUndoPush, onRedoClear]);
+    }, [toolState.tool, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear, isPanTool]);
 
     const handleMouseMove = useCallback((e: KonvaEventObject<MouseEvent>) => {
+        if (isPanning.current && lastPanClient.current) {
+            const dx = e.evt.clientX - lastPanClient.current.x;
+            const dy = e.evt.clientY - lastPanClient.current.y;
+            lastPanClient.current = { x: e.evt.clientX, y: e.evt.clientY };
+            setStagePos(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+            return;
+        }
         if (!isDrawing.current) return;
-        const { x, y } = toLogical(e);
+
+        const stage = e.target.getStage()!;
+        const { x, y } = getWorldPos(stage);
+
         if (toolState.tool === 'pen' || toolState.tool === 'highlighter') {
             setActivePoints(prev => [...prev, x, y]);
         } else if (shapeStart && ['rect', 'circle', 'arrow'].includes(toolState.tool)) {
-            setPreviewShape({ x: Math.min(x, shapeStart.x), y: Math.min(y, shapeStart.y), w: Math.abs(x - shapeStart.x), h: Math.abs(y - shapeStart.y) });
+            setPreviewShape({
+                x: Math.min(x, shapeStart.x),
+                y: Math.min(y, shapeStart.y),
+                w: Math.abs(x - shapeStart.x),
+                h: Math.abs(y - shapeStart.y),
+            });
         }
-    }, [toolState.tool, toLogical, shapeStart]);
+    }, [toolState.tool, getWorldPos, shapeStart]);
 
     const handleMouseUp = useCallback((e: KonvaEventObject<MouseEvent>) => {
+        if (isPanning.current) {
+            isPanning.current = false;
+            lastPanClient.current = null;
+            return;
+        }
         if (!isDrawing.current) return;
         isDrawing.current = false;
-        const { x, y } = toLogical(e);
+
+        const stage = e.target.getStage()!;
+        const { x, y } = getWorldPos(stage);
 
         if ((toolState.tool === 'pen' || toolState.tool === 'highlighter') && activePoints.length >= 4) {
             const ann = buildPenAnnotation(activePoints, toolState, toolState.tool);
@@ -112,42 +193,54 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             setActivePoints([]);
         } else if (shapeStart && ['rect', 'circle', 'arrow'].includes(toolState.tool)) {
             const shape = toolState.tool as 'rect' | 'circle' | 'arrow';
-            const pts = [shapeStart.x, shapeStart.y, x, y];
             if (Math.abs(x - shapeStart.x) > 4 || Math.abs(y - shapeStart.y) > 4) {
-                const ann = buildShapeAnnotation(shape, pts, toolState);
-                onCommit(prev => [...prev, ann]);
+                onCommit(prev => [...prev, buildShapeAnnotation(shape, [shapeStart.x, shapeStart.y, x, y], toolState)]);
             }
             setShapeStart(null);
             setPreviewShape(null);
         }
-    }, [toolState, activePoints, shapeStart, onCommit, toLogical]);
+    }, [toolState, activePoints, shapeStart, onCommit, getWorldPos]);
 
     const handleDoubleClick = useCallback((e: KonvaEventObject<MouseEvent>) => {
         if (toolState.tool !== 'text') return;
-        const { x, y } = toLogical(e);
+        const stage = e.target.getStage()!;
+        const { x, y } = getWorldPos(stage);
         const text = window.prompt('Enter text:');
         if (text) {
             onUndoPush([...page.annotations]);
             onRedoClear();
-            const ann = buildTextAnnotation(x, y, text, toolState);
-            onCommit(prev => [...prev, ann]);
+            onCommit(prev => [...prev, buildTextAnnotation(x, y, text, toolState)]);
         }
-    }, [toolState, toLogical, page.annotations, onCommit, onUndoPush, onRedoClear]);
+    }, [toolState, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear]);
 
-    // Render a committed annotation
+    // ── Zoom button helpers ──────────────────────────────────────────────────
+    const zoomBy = useCallback((factor: number) => {
+        const cx = containerW / 2;
+        const cy = containerH / 2;
+        setStageScale(prev => {
+            const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, prev * factor));
+            setStagePos(pos => ({
+                x: cx - (cx - pos.x) / prev * next,
+                y: cy - (cy - pos.y) / prev * next,
+            }));
+            return next;
+        });
+    }, [containerW, containerH]);
+
+    const zoomReset = useCallback(() => {
+        setStageScale(1);
+        setStagePos({ x: 0, y: 0 });
+    }, []);
+
+    // ── Render committed annotations ─────────────────────────────────────────
     const renderAnnotation = (ann: Annotation) => {
         if (ann.type === 'pen' || ann.type === 'highlighter') {
             return (
                 <Line
-                    key={ann.id}
-                    id={ann.id}
+                    key={ann.id} id={ann.id}
                     points={ann.points}
-                    stroke={ann.tool.color}
-                    strokeWidth={ann.tool.width}
-                    opacity={ann.tool.opacity}
-                    tension={0.4}
-                    lineCap="round"
-                    lineJoin="round"
+                    stroke={ann.tool.color} strokeWidth={ann.tool.width} opacity={ann.tool.opacity}
+                    tension={0.4} lineCap="round" lineJoin="round"
                     globalCompositeOperation="source-over"
                 />
             );
@@ -155,91 +248,80 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         if (ann.type === 'text') {
             return (
                 <Text
-                    key={ann.id}
-                    id={ann.id}
-                    x={ann.x}
-                    y={ann.y}
-                    text={ann.text}
-                    fontSize={ann.tool.size}
-                    fill={ann.tool.color}
-                    fontFamily="sans-serif"
+                    key={ann.id} id={ann.id}
+                    x={ann.x} y={ann.y}
+                    text={ann.text} fontSize={ann.tool.size}
+                    fill={ann.tool.color} fontFamily="sans-serif"
                 />
             );
         }
         if (ann.type === 'shape') {
             const [x1, y1, x2, y2] = ann.points;
-            if (ann.shape === 'rect') {
+            if (ann.shape === 'rect')
                 return <Rect key={ann.id} id={ann.id} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" />;
-            }
             if (ann.shape === 'circle') {
                 const rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
                 return <Circle key={ann.id} id={ann.id} x={(x1 + x2) / 2} y={(y1 + y2) / 2} radiusX={rx} radiusY={ry} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" />;
             }
-            if (ann.shape === 'arrow') {
+            if (ann.shape === 'arrow')
                 return <Arrow key={ann.id} id={ann.id} points={[x1, y1, x2, y2]} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill={ann.tool.color} pointerLength={10} pointerWidth={8} />;
-            }
         }
         return null;
     };
 
     const cursor =
+        isPanTool || spaceDown ? 'grab' :
         toolState.tool === 'eraser' ? 'crosshair' :
-            toolState.tool === 'text' ? 'text' :
-                toolState.tool === 'select' ? 'default' : 'crosshair';
+        toolState.tool === 'text' ? 'text' : 'crosshair';
 
     return (
         <div ref={containerRef} className="relative flex-1 bg-slate-950 overflow-hidden">
-            {/* HTML background (KBot card) */}
+
+            {/* HTML background (KBot card) — transformed with stage */}
             {page.background.kind === 'html' && page.background.html && (
                 <div
                     className="absolute pointer-events-none origin-top-left"
                     style={{
-                        left: offsetX,
-                        top: offsetY,
+                        left: stagePos.x,
+                        top: stagePos.y,
                         width: page.viewport.width,
                         height: page.viewport.height,
-                        transform: `scale(${scale})`,
+                        transform: `scale(${stageScale})`,
                     }}
                     dangerouslySetInnerHTML={{ __html: page.background.html }}
                 />
             )}
-            {/* Blank background */}
-            {page.background.kind === 'blank' && (
-                <div
-                    className="absolute bg-white pointer-events-none"
-                    style={{ left: offsetX, top: offsetY, width: page.viewport.width * scale, height: page.viewport.height * scale }}
-                />
-            )}
 
-            {/* Konva overlay */}
+            {/* Konva stage — fills container, world-space via x/y/scale */}
             <Stage
-                width={containerRef.current?.clientWidth ?? DESIGN_W}
-                height={containerRef.current?.clientHeight ?? DESIGN_H}
+                ref={stageRef}
+                width={containerW}
+                height={containerH}
                 style={{ cursor, position: 'absolute', inset: 0 }}
+                x={stagePos.x}
+                y={stagePos.y}
+                scaleX={stageScale}
+                scaleY={stageScale}
+                onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onDblClick={handleDoubleClick}
-                x={offsetX}
-                y={offsetY}
-                scaleX={scale}
-                scaleY={scale}
             >
                 <Layer>
                     {page.annotations.map(renderAnnotation)}
-                    {/* In-progress pen stroke */}
+
+                    {/* Live pen stroke */}
                     {activePoints.length >= 4 && (
                         <Line
                             points={activePoints}
-                            stroke={toolState.color}
-                            strokeWidth={toolState.strokeWidth}
+                            stroke={toolState.color} strokeWidth={toolState.strokeWidth}
                             opacity={toolState.tool === 'highlighter' ? 0.4 : 1}
-                            tension={0.4}
-                            lineCap="round"
-                            lineJoin="round"
+                            tension={0.4} lineCap="round" lineJoin="round"
                         />
                     )}
-                    {/* Preview shape while dragging */}
+
+                    {/* Shape previews */}
                     {previewShape && toolState.tool === 'rect' && (
                         <Rect x={previewShape.x} y={previewShape.y} width={previewShape.w} height={previewShape.h} stroke={toolState.color} strokeWidth={toolState.strokeWidth} dash={[4, 3]} fill="transparent" />
                     )}
@@ -251,6 +333,25 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                     )}
                 </Layer>
             </Stage>
+
+            {/* Zoom controls — floating bottom-right, above offline indicator */}
+            <div className="absolute bottom-16 right-4 z-10 flex items-center gap-0.5 rounded-lg bg-slate-800/90 backdrop-blur-sm px-1.5 py-1 text-white shadow-lg select-none">
+                <button
+                    onClick={() => zoomBy(1 / ZOOM_STEP)}
+                    className="w-7 h-7 rounded hover:bg-slate-600 flex items-center justify-center text-lg font-bold leading-none"
+                    title="Zoom out (scroll ↓)"
+                >−</button>
+                <button
+                    onClick={zoomReset}
+                    className="min-w-[3.5rem] text-center text-xs font-mono hover:bg-slate-600 rounded px-1 py-0.5"
+                    title="Reset zoom (100%)"
+                >{Math.round(stageScale * 100)}%</button>
+                <button
+                    onClick={() => zoomBy(ZOOM_STEP)}
+                    className="w-7 h-7 rounded hover:bg-slate-600 flex items-center justify-center text-lg font-bold leading-none"
+                    title="Zoom in (scroll ↑)"
+                >+</button>
+            </div>
         </div>
     );
 }

@@ -30,7 +30,7 @@ const TOOLS: { id: DrawingTool; label: string; icon: string }[] = [
     { id: 'circle', label: 'Circle', icon: '○' },
     { id: 'arrow', label: 'Arrow', icon: '→' },
     { id: 'eraser', label: 'Eraser', icon: '⬜' },
-    { id: 'select', label: 'Select', icon: '↖' },
+    { id: 'select', label: 'Pan (Space+drag)', icon: '✋' },
 ];
 
 export function makeAnnotationId() {
