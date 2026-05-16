@@ -126,3 +126,15 @@ async function execute(op: SyncOperation): Promise<void> {
 export async function pendingCount(): Promise<number> {
     return db.syncQueue.count();
 }
+
+// Items that have failed 3+ times — considered "stuck"
+export async function stuckCount(): Promise<number> {
+    return db.syncQueue.filter(item => item.attempts >= 3).count();
+}
+
+// Drop items that have been tried 3+ times and are clearly stuck.
+// Safe to call at any time — data is already saved in IndexedDB locally.
+export async function clearStuckItems(): Promise<void> {
+    const stale = await db.syncQueue.filter(item => item.attempts >= 3).toArray();
+    await db.syncQueue.bulkDelete(stale.map(i => i.id!));
+}
