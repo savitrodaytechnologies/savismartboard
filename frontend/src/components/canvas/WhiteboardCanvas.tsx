@@ -278,6 +278,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     }, []);
 
     // ── Render committed annotations ─────────────────────────────────────────
+    // Hit stroke width for eraser — makes strokes much easier to target
+    const HIT_STROKE = 20;
+
     const renderAnnotation = (ann: Annotation) => {
         if (ann.type === 'pen' || ann.type === 'highlighter') {
             return (
@@ -287,6 +290,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                     stroke={ann.tool.color} strokeWidth={ann.tool.width} opacity={ann.tool.opacity}
                     tension={0.4} lineCap="round" lineJoin="round"
                     globalCompositeOperation="source-over"
+                    hitStrokeWidth={HIT_STROKE}
                 />
             );
         }
@@ -303,13 +307,13 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         if (ann.type === 'shape') {
             const [x1, y1, x2, y2] = ann.points;
             if (ann.shape === 'rect')
-                return <Rect key={ann.id} id={ann.id} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" />;
+                return <Rect key={ann.id} id={ann.id} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" hitStrokeWidth={HIT_STROKE} />;
             if (ann.shape === 'circle') {
                 const rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
-                return <Circle key={ann.id} id={ann.id} x={(x1 + x2) / 2} y={(y1 + y2) / 2} radiusX={rx} radiusY={ry} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" />;
+                return <Circle key={ann.id} id={ann.id} x={(x1 + x2) / 2} y={(y1 + y2) / 2} radiusX={rx} radiusY={ry} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" hitStrokeWidth={HIT_STROKE} />;
             }
             if (ann.shape === 'arrow')
-                return <Arrow key={ann.id} id={ann.id} points={[x1, y1, x2, y2]} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill={ann.tool.color} pointerLength={10} pointerWidth={8} />;
+                return <Arrow key={ann.id} id={ann.id} points={[x1, y1, x2, y2]} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill={ann.tool.color} pointerLength={10} pointerWidth={8} hitStrokeWidth={HIT_STROKE} />;
         }
         return null;
     };
@@ -332,7 +336,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
     const cursor =
         isPanTool || spaceDown ? 'grab' :
-            toolState.tool === 'eraser' ? 'crosshair' :
+            toolState.tool === 'eraser' ? 'cell' :
                 toolState.tool === 'text' ? 'text' : 'crosshair';
 
     return (

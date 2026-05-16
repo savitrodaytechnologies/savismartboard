@@ -128,6 +128,7 @@ export default function SmartboardSessionPage() {
                 onRedo={handleRedo}
                 onClear={handleClear}
                 onEndSession={handleEndSession}
+                onBack={() => navigate('/dashboard')}
                 canUndo={(undoStacks[currentPageIndex]?.length ?? 0) > 0}
                 canRedo={(redoStacks[currentPageIndex]?.length ?? 0) > 0}
                 sessionTitle={`Session #${id}`}

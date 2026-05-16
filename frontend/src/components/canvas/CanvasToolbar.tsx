@@ -15,6 +15,7 @@ interface Props {
     onRedo: () => void;
     onClear: () => void;
     onEndSession: () => void;
+    onBack: () => void;
     canUndo: boolean;
     canRedo: boolean;
     sessionTitle?: string;
@@ -69,11 +70,22 @@ export function buildShapeAnnotation(
     };
 }
 
-export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onClear, onEndSession, canUndo, canRedo, sessionTitle }: Props) {
+export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onClear, onEndSession, onBack, canUndo, canRedo, sessionTitle }: Props) {
     return (
         <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 text-white select-none flex-shrink-0">
+            {/* Back to dashboard */}
+            <button
+                onClick={onBack}
+                title="Back to Dashboard"
+                className="rounded px-2 py-1 text-sm hover:bg-slate-700 text-slate-300 hover:text-white transition-colors flex items-center gap-1 flex-shrink-0"
+            >
+                ← Dashboard
+            </button>
+
+            <div className="w-px h-6 bg-slate-600 mx-1" />
+
             {/* Session title */}
-            <span className="mr-2 hidden sm:block max-w-48 truncate text-sm font-medium text-slate-300">
+            <span className="hidden sm:block max-w-40 truncate text-sm font-medium text-slate-400">
                 {sessionTitle ?? 'Untitled'}
             </span>
 
@@ -87,8 +99,8 @@ export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onC
                         title={t.label}
                         onClick={() => onChange({ tool: t.id })}
                         className={`w-8 h-8 rounded text-sm font-bold transition-colors ${toolState.tool === t.id
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-700 hover:bg-slate-600 text-slate-200'
                             }`}
                     >
                         {t.icon}
