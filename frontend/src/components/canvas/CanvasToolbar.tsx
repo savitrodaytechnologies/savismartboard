@@ -47,6 +47,15 @@ export function buildPenAnnotation(points: number[], tool: ToolState, kind: 'pen
     };
 }
 
+export function buildEraserAnnotation(points: number[], width: number): Annotation {
+    return {
+        id: makeAnnotationId(),
+        type: 'eraser',
+        tool: { width },
+        points,
+    };
+}
+
 export function buildTextAnnotation(x: number, y: number, text: string, tool: ToolState): Annotation {
     return {
         id: makeAnnotationId(),

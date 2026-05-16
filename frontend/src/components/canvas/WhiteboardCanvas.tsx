@@ -9,6 +9,7 @@ import {
     buildPenAnnotation,
     buildTextAnnotation,
     buildShapeAnnotation,
+    buildEraserAnnotation,
 } from './CanvasToolbar';
 
 // ─── zoom limits ─────────────────────────────────────────────────────────────
@@ -176,6 +177,11 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             onUndoPush([...page.annotations]);
             onRedoClear();
             setActivePoints([x, y]);
+        } else if (toolState.tool === 'eraser') {
+            isDrawing.current = true;
+            onUndoPush([...page.annotations]);
+            onRedoClear();
+            setActivePoints([x, y]);
         } else if (['rect', 'circle', 'arrow'].includes(toolState.tool)) {
             isDrawing.current = true;
             onUndoPush([...page.annotations]);
@@ -207,9 +213,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         if (toolState.tool === 'pen' || toolState.tool === 'highlighter') {
             setActivePoints(prev => [...prev, x, y]);
         } else if (toolState.tool === 'eraser') {
-            // drag-erase: remove any annotation the cursor passes over
-            const id = (e.target as Konva.Node).id();
-            if (id) onCommit(prev => prev.filter(a => a.id !== id));
+            setActivePoints(prev => [...prev, x, y]);
         } else if (shapeStart && ['rect', 'circle', 'arrow'].includes(toolState.tool)) {
             setPreviewShape({
                 x: Math.min(x, shapeStart.x),
@@ -234,6 +238,11 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
         if ((toolState.tool === 'pen' || toolState.tool === 'highlighter') && activePoints.length >= 4) {
             const ann = buildPenAnnotation(activePoints, toolState, toolState.tool);
+            onCommit(prev => [...prev, ann]);
+            setActivePoints([]);
+        } else if (toolState.tool === 'eraser' && activePoints.length >= 4) {
+            // Eraser width is strokeWidth * 4 so it feels like a real rubber
+            const ann = buildEraserAnnotation(activePoints, toolState.strokeWidth * 4);
             onCommit(prev => [...prev, ann]);
             setActivePoints([]);
         } else if (shapeStart && ['rect', 'circle', 'arrow'].includes(toolState.tool)) {
@@ -294,6 +303,18 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 />
             );
         }
+        if (ann.type === 'eraser') {
+            return (
+                <Line
+                    key={ann.id} id={ann.id}
+                    points={ann.points}
+                    stroke="rgba(0,0,0,1)" strokeWidth={ann.tool.width}
+                    tension={0.4} lineCap="round" lineJoin="round"
+                    globalCompositeOperation="destination-out"
+                    listening={false}
+                />
+            );
+        }
         if (ann.type === 'text') {
             return (
                 <Text
@@ -334,9 +355,12 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const vThumbTop = Math.max(0, Math.min(vTrackH - vThumbH,
         (worldTop - VIRT_ORIGIN) / (VIRT_H - worldViewH) * (vTrackH - vThumbH)));
 
+    // Eraser circle cursor position (screen coords)
+    const [eraserPos, setEraserPos] = useState<{ x: number; y: number } | null>(null);
+
     const cursor =
         isPanTool || spaceDown ? 'grab' :
-            toolState.tool === 'eraser' ? 'cell' :
+            toolState.tool === 'eraser' ? 'none' :
                 toolState.tool === 'text' ? 'text' : 'crosshair';
 
     return (
@@ -369,20 +393,48 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 scaleY={stageScale}
                 onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
+                onMouseMove={e => {
+                    // track eraser circle position
+                    if (toolState.tool === 'eraser') {
+                        const stage = e.target.getStage()!;
+                        const ptr = stage.getPointerPosition();
+                        if (ptr) setEraserPos({ x: ptr.x, y: ptr.y });
+                    }
+                    handleMouseMove(e);
+                }}
+                onMouseLeave={() => setEraserPos(null)}
                 onMouseUp={handleMouseUp}
                 onDblClick={handleDoubleClick}
             >
                 <Layer>
+                    {/* Paper background — destination-out eraser clears to this white rect, not to transparency */}
+                    <Rect
+                        x={VIRT_ORIGIN} y={VIRT_ORIGIN}
+                        width={VIRT_W} height={VIRT_H}
+                        fill="#f9fafb"
+                        listening={false}
+                    />
+
                     {page.annotations.map(renderAnnotation)}
 
-                    {/* Live pen stroke */}
-                    {activePoints.length >= 4 && (
+                    {/* Live pen/highlighter stroke */}
+                    {activePoints.length >= 4 && (toolState.tool === 'pen' || toolState.tool === 'highlighter') && (
                         <Line
                             points={activePoints}
                             stroke={toolState.color} strokeWidth={toolState.strokeWidth}
                             opacity={toolState.tool === 'highlighter' ? 0.4 : 1}
                             tension={0.4} lineCap="round" lineJoin="round"
+                        />
+                    )}
+
+                    {/* Live eraser stroke preview */}
+                    {activePoints.length >= 4 && toolState.tool === 'eraser' && (
+                        <Line
+                            points={activePoints}
+                            stroke="rgba(0,0,0,1)" strokeWidth={toolState.strokeWidth * 4}
+                            tension={0.4} lineCap="round" lineJoin="round"
+                            globalCompositeOperation="destination-out"
+                            listening={false}
                         />
                     )}
 
@@ -398,6 +450,19 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                     )}
                 </Layer>
             </Stage>
+
+            {/* Eraser circle cursor overlay */}
+            {toolState.tool === 'eraser' && eraserPos && (
+                <div
+                    className="absolute pointer-events-none z-30 rounded-full border-2 border-slate-500 bg-white/30"
+                    style={{
+                        width: toolState.strokeWidth * 4 * stageScale,
+                        height: toolState.strokeWidth * 4 * stageScale,
+                        left: eraserPos.x - (toolState.strokeWidth * 4 * stageScale) / 2,
+                        top: eraserPos.y - (toolState.strokeWidth * 4 * stageScale) / 2,
+                    }}
+                />
+            )}
 
             {/* Zoom controls — floating top-right */}
             <div className="absolute top-3 right-10 z-10 flex items-center gap-0.5 rounded-lg bg-slate-700/80 backdrop-blur-sm px-1.5 py-1 text-white shadow-lg select-none">
