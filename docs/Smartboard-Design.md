@@ -1,8 +1,8 @@
 # Savischools Smartboard — Detailed Design Document
 
-> Version: 1.0  
-> Date: 14 May 2026  
-> Status: Draft for team review  
+> Version: 1.1  
+> Date: 16 May 2026  
+> Status: In development — see §16 for current implementation status  
 > Owners: Parivesh (Smartboard Core) · Manohar (Savischools Integration) · Mukesh (KBot Integration)
 
 ---
@@ -230,14 +230,14 @@ Even though v1 is online-only, the following choices keep offline cheap to add l
 
 ## 9. Six Milestones (mapped to owners)
 
-| # | Milestone | Primary owner | Supporting |
-|---|---|---|---|
-| M1 | Savischools login + teacher context | **Manohar** | Parivesh (shell) |
-| M2 | KBot content card viewer | **Mukesh** | Parivesh (canvas host) |
-| M3 | Whiteboard + annotation layer | **Parivesh** | — |
-| M4 | Question bank + solved card classroom mode | **Mukesh** | Parivesh (board insert) |
-| M5 | Session save / export / share | **Parivesh** | Manohar (portal share) |
-| M6 | Limited AI assistant + production hardening | **Parivesh** | Manohar + Mukesh (grounding data) |
+| # | Milestone | Primary owner | Supporting | Status |
+|---|---|---|---|---|
+| M1 | Savischools login + teacher context | **Manohar** | Parivesh (shell) | 🔴 Not started — `[AllowAnonymous]` everywhere; no SSO handoff |
+| M2 | KBot content card viewer | **Mukesh** | Parivesh (canvas host) | 🟡 Backend complete; card-as-canvas-background not verified end-to-end |
+| M3 | Whiteboard + annotation layer | **Parivesh** | — | ✅ Complete — pen/highlighter/shapes/text/undo/redo/pages |
+| M4 | Question bank + solved card classroom mode | **Mukesh** | Parivesh (board insert) | 🟡 Backend complete; hide/reveal + insert-into-board UI not built |
+| M5 | Session save / export / share | **Parivesh** | Manohar (portal share) | 🟡 Session create/load/auto-save working; export + share are stubs |
+| M6 | Limited AI assistant + production hardening | **Parivesh** | Manohar + Mukesh (grounding data) | 🔴 Not started — `SmartboardAiService` all stubs, no `AiAssistantPanel` |
 
 Each milestone has its own acceptance criteria — see §11.
 
@@ -435,6 +435,67 @@ Each developer owns the tests for their area; Parivesh owns the E2E suite.
 3. **General availability** — feature-flagged per school; AI enabled on opt-in.
 
 Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost per school, share usage, export usage.
+
+---
+
+## 16. Implementation Status (updated 16 May 2026)
+
+### 16.1 Infrastructure
+| Item | Status | Notes |
+|---|---|---|
+| EC2 (ap-south-1, `13.205.70.12`) | ✅ Running | Amazon Linux 2023, systemd service `smartboard-api` |
+| RDS SQL Server (`savismartboard` DB) | ✅ Running | Schema migration `001` applied |
+| GitHub Actions CI/CD | ✅ Auto-deploy on push to `main` | Latest deploy: commit `52d3e0f` |
+| Health endpoint `/healthz` | ✅ Returns `Healthy` | |
+
+### 16.2 Backend services
+| Service | Status | Notes |
+|---|---|---|
+| `KBotCurriculumService` | ✅ Implemented | boards / grades / subjects / chapters / topics / rag-snippets |
+| `KBotContentService` | ✅ Implemented | topic cards (L0–L6), versions, render |
+| `KBotQuestionService` | ✅ Implemented | list / detail / explanation / solved-card / submit |
+| `SmartboardContextService` | 🟡 KBot proxy | Returns KBot data as placeholder; must be replaced with real Savischools data when M1 is done |
+| `SmartboardSessionService` | 🟡 Partial | Create / get / recent / save-page / end working; export + share return placeholder URLs |
+| `SmartboardAiService` | 🔴 Stub | All 6 methods return `[kind] {instruction}` |
+
+### 16.3 Backend controllers — auth
+| Controller | Auth | Notes |
+|---|---|---|
+| `SmartboardContextController` | `[AllowAnonymous]` | Temporary until Manohar wires SSO |
+| `SmartboardKBotCurriculumController` | `[AllowAnonymous]` | Temporary |
+| `SmartboardKBotContentController` | `[AllowAnonymous]` | Temporary |
+| `SmartboardQuestionController` | `[AllowAnonymous]` | Temporary |
+| `SmartboardSessionController` | `[AllowAnonymous]` | Temporary |
+| `SmartboardAiController` | `[Authorize]` | (not yet called by frontend) |
+
+⚠️ All `[AllowAnonymous]` annotations must be replaced with `[Authorize]` once M1 (Savischools SSO) is complete.
+
+### 16.4 Frontend pages
+| Page | Status | Notes |
+|---|---|---|
+| `TeacherDashboardPage` | ✅ Working | Class → Subject → Topic picker, recent sessions, blank board start |
+| `TopicTeachingPage` | 🟡 Partial | Card list + question list + preview render; no question hide/reveal or insert-into-board from question panel |
+| `SmartboardSessionPage` | 🟡 Partial | Canvas + toolbar + undo/redo + page strip working; card HTML background not rendered; no AI panel |
+
+### 16.5 Frontend components
+| Component | Status | Notes |
+|---|---|---|
+| `WhiteboardCanvas` | ✅ Complete | Pen, highlighter, rect/circle/arrow, text, undo, redo |
+| `CanvasToolbar` | ✅ Complete | Tool picker, colour, stroke width, undo/redo/clear, end session |
+| `PageStrip` | ✅ Complete | Thumbnail strip, add/delete pages |
+| `OfflineIndicator` | ✅ Complete | Pending sync badge |
+| `AiAssistantPanel` | 🔴 Not built | M6 |
+| `ContentCardViewer` (in session) | 🔴 Not built | Card HTML as canvas background not wired |
+| `QuestionViewer` / `SolvedCardViewer` | 🔴 Not built | M4 classroom mode UI |
+
+### 16.6 Known issues to fix before production
+1. Replace all `[AllowAnonymous]` with `[Authorize]` after M1 SSO is done.
+2. `SmartboardContextService` — swap KBot proxy for real Savischools class/subject/topic data.
+3. KBot card HTML background rendering in `SmartboardSessionPage` — wiring `cardPage()` helper to canvas background layer.
+4. M4 classroom mode — question hide/reveal UI + insert solved card into board.
+5. M5 export — PDF generation pipeline (server-side preferred; `pdf-lib` client fallback).
+6. M5 share — signed URL delivery to Savischools student/parent portal.
+7. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
 
 ---
 
