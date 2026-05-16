@@ -45,4 +45,4 @@ export type Annotation =
     | { id: string; type: 'pen' | 'highlighter'; tool: { color: string; width: number; opacity: number }; points: number[] }
     | { id: string; type: 'eraser'; tool: { width: number }; points: number[] }
     | { id: string; type: 'text'; tool: { color: string; size: number }; x: number; y: number; text: string }
-    | { id: string; type: 'shape'; tool: { color: string; width: number }; shape: 'rect' | 'circle' | 'arrow' | 'line'; points: number[] };
+    | { id: string; type: 'shape'; tool: { color: string; width: number }; shape: 'rect' | 'circle' | 'arrow' | 'line' | 'polygon'; points: number[] };

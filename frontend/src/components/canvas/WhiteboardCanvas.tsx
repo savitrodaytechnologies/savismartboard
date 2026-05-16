@@ -11,6 +11,7 @@ import {
     buildShapeAnnotation,
     buildEraserAnnotation,
 } from './CanvasToolbar';
+import { tryConvertToShape } from './shapeDetector';
 
 // ─── zoom limits ─────────────────────────────────────────────────────────────
 const MIN_SCALE = 0.05;
@@ -172,7 +173,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
         const { x, y } = getWorldPos(stage);
 
-        if (toolState.tool === 'pen' || toolState.tool === 'highlighter') {
+        if (toolState.tool === 'pen' || toolState.tool === 'highlighter' || toolState.tool === 'smart') {
             isDrawing.current = true;
             onUndoPush([...page.annotations]);
             onRedoClear();
@@ -183,18 +184,6 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             onRedoClear();
             setActivePoints([x, y]);
         } else if (['rect', 'circle', 'arrow'].includes(toolState.tool)) {
-            isDrawing.current = true;
-            onUndoPush([...page.annotations]);
-            onRedoClear();
-            setShapeStart({ x, y });
-            setPreviewShape({ x, y, w: 0, h: 0 });
-        } else if (toolState.tool === 'eraser') {
-            isDrawing.current = true;   // enable drag-erase
-            onUndoPush([...page.annotations]);
-            onRedoClear();
-            const id = (e.target as Konva.Node).id();
-            if (id) onCommit(prev => prev.filter(a => a.id !== id));
-        }
     }, [toolState.tool, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear, isPanTool]);
 
     const handleMouseMove = useCallback((e: KonvaEventObject<MouseEvent>) => {
@@ -210,7 +199,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         const stage = e.target.getStage()!;
         const { x, y } = getWorldPos(stage);
 
-        if (toolState.tool === 'pen' || toolState.tool === 'highlighter') {
+        if (toolState.tool === 'pen' || toolState.tool === 'highlighter' || toolState.tool === 'smart') {
             setActivePoints(prev => [...prev, x, y]);
         } else if (toolState.tool === 'eraser') {
             setActivePoints(prev => [...prev, x, y]);
@@ -244,6 +233,15 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             // Eraser width is strokeWidth * 4 so it feels like a real rubber
             const ann = buildEraserAnnotation(activePoints, toolState.strokeWidth * 4);
             onCommit(prev => [...prev, ann]);
+            setActivePoints([]);
+        } else if (toolState.tool === 'smart' && activePoints.length >= 4) {
+            const converted = tryConvertToShape(activePoints, toolState.color, toolState.strokeWidth);
+            if (converted) {
+                onCommit(prev => [...prev, ...converted]);
+            } else {
+                // fallback: keep as plain pen stroke
+                onCommit(prev => [...prev, buildPenAnnotation(activePoints, toolState, 'pen')]);
+            }
             setActivePoints([]);
         } else if (shapeStart && ['rect', 'circle', 'arrow'].includes(toolState.tool)) {
             const shape = toolState.tool as 'rect' | 'circle' | 'arrow';
@@ -335,6 +333,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             }
             if (ann.shape === 'arrow')
                 return <Arrow key={ann.id} id={ann.id} points={[x1, y1, x2, y2]} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill={ann.tool.color} pointerLength={10} pointerWidth={8} hitStrokeWidth={HIT_STROKE} />;
+            if (ann.shape === 'polygon')
+                return <Line key={ann.id} id={ann.id} points={ann.points} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" closed={true} hitStrokeWidth={HIT_STROKE} />;
         }
         return null;
     };
@@ -417,8 +417,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
                     {page.annotations.map(renderAnnotation)}
 
-                    {/* Live pen/highlighter stroke */}
-                    {activePoints.length >= 4 && (toolState.tool === 'pen' || toolState.tool === 'highlighter') && (
+                    {/* Live pen / highlighter / smart stroke */}
+                    {activePoints.length >= 4 && (toolState.tool === 'pen' || toolState.tool === 'highlighter' || toolState.tool === 'smart') && (
                         <Line
                             points={activePoints}
                             stroke={toolState.color} strokeWidth={toolState.strokeWidth}

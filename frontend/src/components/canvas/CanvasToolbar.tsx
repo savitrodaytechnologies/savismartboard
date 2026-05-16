@@ -1,6 +1,6 @@
 import type { Annotation } from '@/types';
 
-export type DrawingTool = 'pen' | 'highlighter' | 'text' | 'eraser' | 'rect' | 'circle' | 'arrow' | 'select';
+export type DrawingTool = 'pen' | 'highlighter' | 'text' | 'eraser' | 'rect' | 'circle' | 'arrow' | 'select' | 'smart';
 
 export interface ToolState {
     tool: DrawingTool;
@@ -31,6 +31,7 @@ const TOOLS: { id: DrawingTool; label: string; icon: string }[] = [
     { id: 'circle', label: 'Circle', icon: '○' },
     { id: 'arrow', label: 'Arrow', icon: '→' },
     { id: 'eraser', label: 'Eraser', icon: '⬜' },
+    { id: 'smart', label: 'Smart Shape (auto-detect)', icon: '✦' },
     { id: 'select', label: 'Pan (Space+drag)', icon: '✋' },
 ];
 
