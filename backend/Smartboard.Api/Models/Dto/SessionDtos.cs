@@ -1,6 +1,7 @@
 namespace Smartboard.Api.Models.Dto;
 
 public sealed record StartSessionRequest(int ClassId, int? SectionId, int SubjectId, int? TopicId, string SessionTitle);
+public sealed record RenameSessionRequest(string Title);
 public sealed record SessionDto(long SessionId, string Status, DateTime StartedAt, DateTime? EndedAt, IReadOnlyList<SessionPageDto> Pages);
 public sealed record SessionPageDto(long SessionPageId, int PageNo, string PageType, string? SourceType, long? SourceId, long? SourceVersionId, string PageJson, int Revision);
 public sealed record SavePageRequest(int PageNo, string PageType, string? SourceType, long? SourceId, long? SourceVersionId, string PageJson, int Revision);

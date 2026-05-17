@@ -40,6 +40,9 @@ export default function TeacherDashboardPage() {
     const [starting, setStarting] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<{ sessionId: number; title: string } | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [renameTarget, setRenameTarget] = useState<number | null>(null);
+    const [renameValue, setRenameValue] = useState('');
+    const [renaming, setRenaming] = useState(false);
     async function loadLocalSessions() {
         const locals = await db.sessions.orderBy('updatedAt').reverse().limit(10).toArray();
         setRecentSessions(filterDeleted(locals.map(s => ({
@@ -83,6 +86,33 @@ export default function TeacherDashboardPage() {
             .then((data: TopicDto[]) => setTopics(data))
             .catch(() => setTopics([]));
     }, [selectedSubject, selectedClass]);
+
+    function startRename(s: RecentSession) {
+        setRenameTarget(s.sessionId);
+        setRenameValue(s.sessionTitle ?? `Session #${s.sessionId}`);
+    }
+
+    async function commitRename(sessionId: number) {
+        const title = renameValue.trim();
+        if (!title) { cancelRename(); return; }
+        setRenaming(true);
+        try {
+            if (isOnline) await smartboardSessionService.rename(sessionId, title);
+            await db.sessions.update(sessionId, { sessionTitle: title });
+            await db.sessions.update(String(sessionId) as unknown as number, { sessionTitle: title });
+            setRecentSessions(prev => prev.map(s =>
+                s.sessionId === sessionId ? { ...s, sessionTitle: title } : s
+            ));
+        } catch { /* swallow */ } finally {
+            setRenaming(false);
+            setRenameTarget(null);
+        }
+    }
+
+    function cancelRename() {
+        setRenameTarget(null);
+        setRenameValue('');
+    }
 
     async function handleDeleteConfirmed() {
         if (!deleteTarget) return;
@@ -260,8 +290,23 @@ export default function TeacherDashboardPage() {
                                     <tbody>
                                         {recentSessions.map(s => (
                                             <tr key={s.sessionId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                <td className="py-2 pr-3 text-slate-800 font-medium max-w-52 truncate">
-                                                    {s.sessionTitle ?? `Session #${s.sessionId}`}
+                                                <td className="py-2 pr-3 text-slate-800 font-medium max-w-52">
+                                                    {renameTarget === s.sessionId ? (
+                                                        <input
+                                                            autoFocus
+                                                            className="w-full border border-blue-400 rounded px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                                                            value={renameValue}
+                                                            disabled={renaming}
+                                                            onChange={e => setRenameValue(e.target.value)}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') commitRename(s.sessionId);
+                                                                if (e.key === 'Escape') cancelRename();
+                                                            }}
+                                                            onBlur={() => commitRename(s.sessionId)}
+                                                        />
+                                                    ) : (
+                                                        <span className="truncate block">{s.sessionTitle ?? `Session #${s.sessionId}`}</span>
+                                                    )}
                                                 </td>
                                                 <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">
                                                     {new Date(s.startedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -285,6 +330,11 @@ export default function TeacherDashboardPage() {
                                                         >
                                                             {s.status === 'InProgress' ? 'Continue' : 'View'}
                                                         </button>
+                                                        <button
+                                                            onClick={() => startRename(s)}
+                                                            className="rounded px-2 py-1 text-xs font-semibold text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                            title="Rename session"
+                                                        >✏️</button>
                                                         <button
                                                             onClick={() => setDeleteTarget({ sessionId: s.sessionId, title: s.sessionTitle ?? `Session #${s.sessionId}` })}
                                                             className="rounded px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-50 transition-colors"

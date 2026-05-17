@@ -12,6 +12,7 @@ public interface ISmartboardSessionRepository
     Task<IReadOnlyList<SessionDto>> GetRecentSessionsAsync(int schoolId, int teacherId, CancellationToken ct = default);
     Task UpsertPageAsync(int schoolId, int teacherId, long sessionId, SavePageRequest req, CancellationToken ct = default);
     Task EndSessionAsync(int schoolId, int teacherId, long sessionId, CancellationToken ct = default);
+    Task RenameSessionAsync(int schoolId, int teacherId, long sessionId, string title, CancellationToken ct = default);
     Task DeleteSessionAsync(int schoolId, int teacherId, long sessionId, CancellationToken ct = default);
 }
 
@@ -171,7 +172,21 @@ public sealed class SmartboardSessionRepository : ISmartboardSessionRepository
             new { SessionId = sessionId, SchoolId = schoolId, TeacherId = teacherId },
             cancellationToken: ct));
     }
+    public async Task RenameSessionAsync(int schoolId, int teacherId, long sessionId, string title, CancellationToken ct = default)
+    {
+        const string sql = """
+            UPDATE dbo.SmartboardSession
+            SET    SessionTitle = @Title
+            WHERE  SessionId  = @SessionId
+              AND  SchoolId   = @SchoolId
+              AND  TeacherId  = @TeacherId;
+            """;
 
+        using var conn = _db.Create();
+        await conn.ExecuteAsync(new CommandDefinition(sql,
+            new { Title = title.Trim(), SessionId = sessionId, SchoolId = schoolId, TeacherId = teacherId },
+            cancellationToken: ct));
+    }
     public async Task DeleteSessionAsync(int schoolId, int teacherId, long sessionId, CancellationToken ct = default)
     {
         const string deletePagesSql = """

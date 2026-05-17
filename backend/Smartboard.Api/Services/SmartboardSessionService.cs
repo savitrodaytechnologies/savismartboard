@@ -11,6 +11,7 @@ public interface ISmartboardSessionService
     Task<IReadOnlyList<SessionDto>> GetRecentAsync(CancellationToken ct = default);
     Task SavePageAsync(long sessionId, SavePageRequest req, CancellationToken ct = default);
     Task EndAsync(long sessionId, CancellationToken ct = default);
+    Task RenameAsync(long sessionId, string title, CancellationToken ct = default);
     Task DeleteAsync(long sessionId, CancellationToken ct = default);
     Task<string> ExportAsync(long sessionId, ExportRequest req, CancellationToken ct = default);
     Task<string> ShareAsync(long sessionId, ShareRequest req, CancellationToken ct = default);
@@ -42,6 +43,9 @@ public sealed class SmartboardSessionService : ISmartboardSessionService
 
     public Task EndAsync(long sessionId, CancellationToken ct = default)
         => _repo.EndSessionAsync(_teacher.SchoolId, _teacher.TeacherId, sessionId, ct);
+
+    public Task RenameAsync(long sessionId, string title, CancellationToken ct = default)
+        => _repo.RenameSessionAsync(_teacher.SchoolId, _teacher.TeacherId, sessionId, title, ct);
 
     public Task DeleteAsync(long sessionId, CancellationToken ct = default)
         => _repo.DeleteSessionAsync(_teacher.SchoolId, _teacher.TeacherId, sessionId, ct);

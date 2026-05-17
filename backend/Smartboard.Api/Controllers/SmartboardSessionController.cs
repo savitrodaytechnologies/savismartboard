@@ -38,6 +38,15 @@ public sealed class SmartboardSessionController : ControllerBase
         return NoContent();
     }
 
+    [HttpPatch("{sessionId:long}/rename")]
+    public async Task<IActionResult> Rename(long sessionId, [FromBody] RenameSessionRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Title))
+            return BadRequest(new { error = "Title cannot be empty." });
+        await _svc.RenameAsync(sessionId, req.Title, ct);
+        return NoContent();
+    }
+
     [HttpDelete("{sessionId:long}")]
     public async Task<IActionResult> Delete(long sessionId, CancellationToken ct)
     {
