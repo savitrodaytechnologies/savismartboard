@@ -19,6 +19,7 @@ interface Props {
     canUndo: boolean;
     canRedo: boolean;
     sessionTitle?: string;
+    readOnly?: boolean;
 }
 
 const COLORS = ['#1e293b', '#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#ffffff'];
@@ -80,7 +81,7 @@ export function buildShapeAnnotation(
     };
 }
 
-export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onClear, onEndSession, onBack, canUndo, canRedo, sessionTitle }: Props) {
+export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onClear, onEndSession, onBack, canUndo, canRedo, sessionTitle, readOnly = false }: Props) {
     return (
         <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 text-white select-none flex-shrink-0">
             {/* Back to dashboard */}
@@ -99,7 +100,16 @@ export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onC
                 {sessionTitle ?? 'Untitled'}
             </span>
 
-            <div className="w-px h-6 bg-slate-600 mx-1" />
+            {readOnly ? (
+                <>
+                    <div className="w-px h-6 bg-slate-600 mx-1" />
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-400/20 text-amber-300">
+                        View Only
+                    </span>
+                </>
+            ) : (
+                <>
+                    <div className="w-px h-6 bg-slate-600 mx-1" />
 
             {/* Tool buttons */}
             <div className="flex gap-1">
@@ -161,6 +171,8 @@ export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onC
             >
                 End Session
             </button>
+                </>
+            )}
         </div>
     );
 }

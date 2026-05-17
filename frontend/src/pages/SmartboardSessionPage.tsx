@@ -92,19 +92,17 @@ export default function SmartboardSessionPage() {
 
     if (status === 'loading') return <div className="flex h-screen items-center justify-center text-slate-400">Loading session…</div>;
     if (status === 'error') return <div className="flex h-screen items-center justify-center text-rose-500">Failed to load session.</div>;
-    if (status === 'ended') return (
-        <div className="flex h-screen flex-col items-center justify-center gap-4">
-            <p className="text-2xl font-semibold text-slate-700">Session ended.</p>
-            <button onClick={() => navigate('/dashboard')} className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Back to Dashboard</button>
-        </div>
-    );
+
+    const readOnly = status === 'ended';
+    // In view-only mode force pan tool so nothing can be drawn
+    const effectiveTool: ToolState = readOnly ? { ...toolState, tool: 'select' } : toolState;
 
     return (
         <div className="flex flex-col h-screen bg-slate-950 overflow-hidden">
             {currentPage && (
                 <WhiteboardCanvas
                     page={currentPage}
-                    toolState={toolState}
+                    toolState={effectiveTool}
                     undoStack={undoStacks[currentPageIndex] ?? []}
                     redoStack={redoStacks[currentPageIndex] ?? []}
                     onCommit={fn => setAnnotations(currentPageIndex, fn)}
@@ -122,8 +120,8 @@ export default function SmartboardSessionPage() {
             />
 
             <CanvasToolbar
-                toolState={toolState}
-                onChange={patch => setToolState(prev => ({ ...prev, ...patch }))}
+                toolState={effectiveTool}
+                onChange={patch => !readOnly && setToolState(prev => ({ ...prev, ...patch }))}
                 onUndo={handleUndo}
                 onRedo={handleRedo}
                 onClear={handleClear}
@@ -132,6 +130,7 @@ export default function SmartboardSessionPage() {
                 canUndo={(undoStacks[currentPageIndex]?.length ?? 0) > 0}
                 canRedo={(redoStacks[currentPageIndex]?.length ?? 0) > 0}
                 sessionTitle={`Session #${id}`}
+                readOnly={readOnly}
             />
 
             {/* ── Clear page confirmation modal ─────────────────── */}

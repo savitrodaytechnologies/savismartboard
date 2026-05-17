@@ -73,18 +73,19 @@ export default function TeacherDashboardPage() {
     async function handleDeleteConfirmed() {
         if (!deleteTarget) return;
         setDeleting(true);
+        const id = deleteTarget.sessionId;
         try {
-            const id = deleteTarget.sessionId;
             if (isOnline) {
                 await smartboardSessionService.delete(id);
             }
-            // Always remove from local DB
+            // Remove from local DB (best-effort — may not exist locally)
             await db.sessions.delete(id as unknown as string);
             await db.pages.where('sessionId').equals(id as unknown as number).delete();
-            setRecentSessions(prev => prev.filter(s => s.sessionId !== id));
         } catch {
             // swallow — session may already be gone
         } finally {
+            // Always remove from the list even if the API call failed
+            setRecentSessions(prev => prev.filter(s => s.sessionId !== id));
             setDeleting(false);
             setDeleteTarget(null);
         }
