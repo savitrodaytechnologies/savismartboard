@@ -1,5 +1,8 @@
 using System.Text;
+using Amazon;
+using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -22,9 +25,17 @@ builder.Host.UseSerilog((ctx, lc) => lc
 builder.Services.Configure<SavischoolsOptions>(builder.Configuration.GetSection("Savischools"));
 builder.Services.Configure<KBotOptions>(builder.Configuration.GetSection("KBot"));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("Ai"));
+builder.Services.Configure<S3Options>(builder.Configuration.GetSection("S3"));
 
 // Infra
 builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<S3Options>>().Value;
+    var region = RegionEndpoint.GetBySystemName(opts.Region);
+    return new AmazonS3Client(region); // Uses EC2 IAM role credentials automatically
+});
+builder.Services.AddSingleton<IS3PageArchiveService, S3PageArchiveService>();
 builder.Services.AddHttpContextAccessor();
 
 // Auth — dev: local symmetric key (no Savischools needed); prod: Savischools JWKS authority

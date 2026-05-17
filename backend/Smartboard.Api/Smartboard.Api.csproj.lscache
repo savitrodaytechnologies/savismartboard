@@ -69,6 +69,7 @@ HttpClients/
 Infrastructure/
  HttpPolicies.cs
  Options.cs
+ S3PageArchiveService.cs
  SqlConnectionFactory.cs
 Models/
  Domain/SessionEntities.cs
@@ -404,6 +405,8 @@ Services/
  System.Xml.XPath.XDocument.dll
  WindowsBase.dll
 <NUGET>/
+ awssdk.core/3.7.401.13/lib/net8.0/AWSSDK.Core.dll
+ awssdk.s3/3.7.414.3/lib/net8.0/AWSSDK.S3.dll
  azure.core/1.38.0/lib/net6.0/Azure.Core.dll
  azure.identity/1.11.4/lib/netstandard2.0/Azure.Identity.dll
  dapper/2.1.35/lib/net7.0/Dapper.dll
@@ -468,6 +471,9 @@ Services/
 <DOTNET>/sdk/9.0.309/Sdks/Microsoft.NET.Sdk/analyzers/
  Microsoft.CodeAnalysis.CSharp.NetAnalyzers.dll
  Microsoft.CodeAnalysis.NetAnalyzers.dll
+<NUGET>/awssdk.s3/3.7.414.3/analyzers/dotnet/cs/
+ AWSSDK.S3.CodeAnalysis.dll
+ SharedAnalysisCode.dll
 
 [analyzerConfigFiles]
 ../../.editorconfig

@@ -22,3 +22,9 @@ public sealed class AiOptions
     public string Model { get; set; } = "";
     public decimal MonthlyBudgetUsd { get; set; }
 }
+
+public sealed class S3Options
+{
+    public string BucketName { get; set; } = "savismartboard-sessions";
+    public string Region { get; set; } = "ap-south-1";
+}

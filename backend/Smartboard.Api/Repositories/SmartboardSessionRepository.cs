@@ -12,6 +12,7 @@ public interface ISmartboardSessionRepository
     Task<IReadOnlyList<SessionDto>> GetRecentSessionsAsync(int schoolId, int teacherId, CancellationToken ct = default);
     Task UpsertPageAsync(int schoolId, int teacherId, long sessionId, SavePageRequest req, CancellationToken ct = default);
     Task EndSessionAsync(int schoolId, int teacherId, long sessionId, CancellationToken ct = default);
+    Task ArchiveSessionPagesAsync(long sessionId, IReadOnlyList<(int PageNo, string S3Key)> pages, CancellationToken ct = default);
     Task RenameSessionAsync(int schoolId, int teacherId, long sessionId, string title, CancellationToken ct = default);
     Task DeleteSessionAsync(int schoolId, int teacherId, long sessionId, CancellationToken ct = default);
 }
@@ -61,7 +62,7 @@ public sealed class SmartboardSessionRepository : ISmartboardSessionRepository
 
         const string pagesSql = """
             SELECT p.SessionPageId, p.PageNo, p.PageType, p.SourceType, p.SourceId,
-                   p.SourceVersionId, p.PageJson, p.Revision
+                   p.SourceVersionId, p.PageJson, p.Revision, p.PageJsonUrl
             FROM   dbo.SmartboardSessionPage p
             INNER JOIN dbo.SmartboardSession s ON s.SessionId = p.SessionId
             WHERE  p.SessionId = @SessionId
@@ -172,6 +173,25 @@ public sealed class SmartboardSessionRepository : ISmartboardSessionRepository
             new { SessionId = sessionId, SchoolId = schoolId, TeacherId = teacherId },
             cancellationToken: ct));
     }
+    public async Task ArchiveSessionPagesAsync(long sessionId, IReadOnlyList<(int PageNo, string S3Key)> pages, CancellationToken ct = default)
+    {
+        const string sql = """
+            UPDATE dbo.SmartboardSessionPage
+            SET    PageJsonUrl = @S3Key,
+                   PageJson    = NULL,
+                   ModifiedOn  = SYSUTCDATETIME()
+            WHERE  SessionId = @SessionId
+              AND  PageNo    = @PageNo;
+            """;
+
+        using var conn = _db.Create();
+        foreach (var (pageNo, s3Key) in pages)
+        {
+            await conn.ExecuteAsync(new CommandDefinition(sql,
+                new { SessionId = sessionId, PageNo = pageNo, S3Key = s3Key }));
+        }
+    }
+
     public async Task RenameSessionAsync(int schoolId, int teacherId, long sessionId, string title, CancellationToken ct = default)
     {
         const string sql = """
