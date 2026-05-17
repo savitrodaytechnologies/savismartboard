@@ -62,10 +62,30 @@ export default function TeacherDashboardPage() {
 
         setSessionsLoading(true);
         if (isOnline) {
-            smartboardSessionService.recent()
-                .then((data: RecentSession[]) => setRecentSessions(filterDeleted(data)))
-                .catch(() => loadLocalSessions())
-                .finally(() => setSessionsLoading(false));
+            (async () => {
+                try {
+                    const serverSessions = await smartboardSessionService.recent();
+                    // Merge: server sessions + any local-only sessions never synced to server
+                    const localSessions = await db.sessions.orderBy('updatedAt').reverse().limit(50).toArray();
+                    const serverIds = new Set(serverSessions.map((s: RecentSession) => s.sessionId));
+                    const localOnly = localSessions
+                        .filter(s => !s.serverSessionId || !serverIds.has(s.serverSessionId))
+                        .map(s => ({
+                            sessionId: (s.serverSessionId ?? s.sessionId) as number,
+                            status: s.status,
+                            startedAt: s.startedAt,
+                            sessionTitle: s.sessionTitle,
+                        }));
+                    const merged = [...serverSessions, ...localOnly]
+                        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+                        .slice(0, 10);
+                    setRecentSessions(filterDeleted(merged));
+                } catch {
+                    await loadLocalSessions();
+                } finally {
+                    setSessionsLoading(false);
+                }
+            })();
         } else {
             loadLocalSessions().finally(() => setSessionsLoading(false));
         }
