@@ -91,7 +91,7 @@ builder.Services.AddHttpClient<IKBotClient, KBotClient>()
 
 // Register the right AI client based on Ai:ActiveProvider
 var activeAiProvider = builder.Configuration["Ai:ActiveProvider"]?.ToLowerInvariant() ?? "deepseek";
-if (activeAiProvider == "anthropic")
+if (activeAiProvider == "anthropic" || activeAiProvider == "copilot")
     builder.Services.AddHttpClient<IAiClient, AnthropicAiClient>().AddPolicyHandler(HttpPolicies.Retry());
 else
     builder.Services.AddHttpClient<IAiClient, OpenAiCompatibleAiClient>().AddPolicyHandler(HttpPolicies.Retry());
