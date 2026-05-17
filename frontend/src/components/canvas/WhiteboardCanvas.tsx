@@ -34,11 +34,13 @@ interface Props {
     onCommit: (fn: (prev: Annotation[]) => Annotation[]) => void;
     onUndoPush: (snapshot: Annotation[]) => void;
     onRedoClear: () => void;
+    savedViewport?: { scale: number; pos: { x: number; y: number } };
+    onViewportChange: (v: { scale: number; pos: { x: number; y: number } }) => void;
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear }: Props) {
+export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear, savedViewport, onViewportChange }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const stageRef = useRef<Konva.Stage>(null);
 
@@ -60,11 +62,20 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const [stageScale, setStageScale] = useState(1);
     const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
 
-    // Reset viewport when the user switches to a different page
+    // Restore this page's saved viewport when switching pages
     useEffect(() => {
-        setStageScale(1);
-        setStagePos({ x: 0, y: 0 });
-    }, [page.pageNo]);
+        setStageScale(savedViewport?.scale ?? 1);
+        setStagePos(savedViewport?.pos ?? { x: 0, y: 0 });
+    }, [page.pageNo]); // eslint-disable-line react-hooks/exhaustive-deps
+    // (savedViewport is intentionally excluded — we only want to run on page switch,
+    //  not every time the parent re-reports the same value)
+
+    // Report viewport changes to parent so it can persist per-page
+    const onViewportChangeRef = useRef(onViewportChange);
+    onViewportChangeRef.current = onViewportChange;
+    useEffect(() => {
+        onViewportChangeRef.current({ scale: stageScale, pos: stagePos });
+    }, [stageScale, stagePos]);
 
     // In-progress stroke
     const [activePoints, setActivePoints] = useState<number[]>([]);

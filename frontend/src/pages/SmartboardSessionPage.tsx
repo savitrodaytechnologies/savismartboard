@@ -30,6 +30,12 @@ export default function SmartboardSessionPage() {
     const [ending, setEnding] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+    // Per-page viewport (pan + zoom) — stored in a ref so panning never causes parent re-renders
+    const viewportStore = useRef<Record<number, { scale: number; pos: { x: number; y: number } }>>({});
+    const saveViewport = useCallback((v: { scale: number; pos: { x: number; y: number } }) => {
+        viewportStore.current[currentPageIndex] = v;
+    }, [currentPageIndex]);
+
     // Per-page undo/redo stacks (keyed by pageIndex)
     const [undoStacks, setUndoStacks] = useState<Record<number, Annotation[][]>>({});
     const [redoStacks, setRedoStacks] = useState<Record<number, Annotation[][]>>({});
@@ -108,6 +114,8 @@ export default function SmartboardSessionPage() {
                     onCommit={fn => setAnnotations(currentPageIndex, fn)}
                     onUndoPush={pushUndo}
                     onRedoClear={clearRedo}
+                    savedViewport={viewportStore.current[currentPageIndex]}
+                    onViewportChange={saveViewport}
                 />
             )}
 
