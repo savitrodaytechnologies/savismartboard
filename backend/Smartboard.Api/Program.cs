@@ -89,12 +89,10 @@ builder.Services.AddHttpClient<ISavischoolsClient, SavischoolsClient>()
 builder.Services.AddHttpClient<IKBotClient, KBotClient>()
     .AddPolicyHandler(HttpPolicies.Retry());
 
-// Register the right AI client based on Ai:ActiveProvider
-var activeAiProvider = builder.Configuration["Ai:ActiveProvider"]?.ToLowerInvariant() ?? "deepseek";
-if (activeAiProvider == "anthropic" || activeAiProvider == "copilot")
-    builder.Services.AddHttpClient<IAiClient, AnthropicAiClient>().AddPolicyHandler(HttpPolicies.Retry());
-else
-    builder.Services.AddHttpClient<IAiClient, OpenAiCompatibleAiClient>().AddPolicyHandler(HttpPolicies.Retry());
+// Register named HttpClient "ai" (Polly retry) used by HybridAiClient
+builder.Services.AddHttpClient("ai").AddPolicyHandler(HttpPolicies.Retry());
+// HybridAiClient: DeepSeek for text-only, Anthropic (copilot) for vision — routes per call
+builder.Services.AddSingleton<IAiClient, HybridAiClient>();
 
 // Domain services — dev uses local mocks so Parivesh can work without Savischools or KBot
 if (builder.Environment.IsDevelopment())

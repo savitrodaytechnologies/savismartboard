@@ -22,8 +22,8 @@ public interface IAiClient
 
 public sealed class OpenAiCompatibleAiClient : IAiClient
 {
-    private readonly HttpClient _http;
-    private readonly AiOptions  _opts;
+    private readonly HttpClient      _http;
+    private readonly AiProviderConfig _cfg;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -31,10 +31,10 @@ public sealed class OpenAiCompatibleAiClient : IAiClient
         DefaultIgnoreCondition     = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    public OpenAiCompatibleAiClient(HttpClient http, IOptions<AiOptions> opts)
+    /// <summary>Direct constructor — used by HybridAiClient.</summary>
+    public OpenAiCompatibleAiClient(HttpClient http, AiProviderConfig cfg)
     {
-        _opts = opts.Value;
-        var cfg = _opts.Active;
+        _cfg  = cfg;
         _http = http;
         _http.BaseAddress = new Uri(cfg.BaseUrl.TrimEnd('/') + '/');
         if (!string.IsNullOrWhiteSpace(cfg.ApiKey))
@@ -44,11 +44,9 @@ public sealed class OpenAiCompatibleAiClient : IAiClient
 
     public async Task<string> ChatAsync(string systemPrompt, AiMessage message, CancellationToken ct = default)
     {
-        var cfg = _opts.Active;
-
         // Vision: array of content objects. Text-only: plain string.
-        // Only send image if the configured model actually supports vision (cfg.Vision == true).
-        object userContent = (string.IsNullOrEmpty(message.ImageBase64) || !cfg.Vision)
+        // Only send image if the configured model actually supports vision.
+        object userContent = (string.IsNullOrEmpty(message.ImageBase64) || !_cfg.Vision)
             ? (object)message.Text
             : new object[]
               {
@@ -58,7 +56,7 @@ public sealed class OpenAiCompatibleAiClient : IAiClient
 
         var payload = JsonSerializer.Serialize(new
         {
-            model    = cfg.Model,
+            model    = _cfg.Model,
             messages = new object[]
             {
                 new { role = "system", content = systemPrompt },
@@ -88,8 +86,8 @@ public sealed class OpenAiCompatibleAiClient : IAiClient
 
 public sealed class AnthropicAiClient : IAiClient
 {
-    private readonly HttpClient _http;
-    private readonly AiOptions  _opts;
+    private readonly HttpClient       _http;
+    private readonly AiProviderConfig  _cfg;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -97,10 +95,10 @@ public sealed class AnthropicAiClient : IAiClient
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    public AnthropicAiClient(HttpClient http, IOptions<AiOptions> opts)
+    /// <summary>Direct constructor — used by HybridAiClient.</summary>
+    public AnthropicAiClient(HttpClient http, AiProviderConfig cfg)
     {
-        _opts = opts.Value;
-        var cfg = _opts.Active;
+        _cfg  = cfg;
         _http = http;
         _http.BaseAddress = new Uri(
             string.IsNullOrWhiteSpace(cfg.BaseUrl)
@@ -113,11 +111,9 @@ public sealed class AnthropicAiClient : IAiClient
 
     public async Task<string> ChatAsync(string systemPrompt, AiMessage message, CancellationToken ct = default)
     {
-        var cfg = _opts.Active;
-
         // Claude content array: image first (if any, and only if Vision is enabled), then text
         var contentItems = new List<object>();
-        if (!string.IsNullOrEmpty(message.ImageBase64) && cfg.Vision)
+        if (!string.IsNullOrEmpty(message.ImageBase64) && _cfg.Vision)
         {
             contentItems.Add(new
             {
@@ -129,7 +125,7 @@ public sealed class AnthropicAiClient : IAiClient
 
         var payload = JsonSerializer.Serialize(new
         {
-            model      = cfg.Model,
+            model      = _cfg.Model,
             max_tokens = 1024,
             system     = systemPrompt,
             messages   = new[] { new { role = "user", content = (object)contentItems } },
@@ -141,13 +137,49 @@ public sealed class AnthropicAiClient : IAiClient
         };
 
         var resp = await _http.SendAsync(req, ct);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException(
+                $"Anthropic API {(int)resp.StatusCode} ({resp.ReasonPhrase}): {body}",
+                null, resp.StatusCode);
+        }
 
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
         return doc.RootElement
             .GetProperty("content")[0]
             .GetProperty("text")
             .GetString() ?? string.Empty;
+    }
+}
+
+// ── Hybrid: DeepSeek for text, Anthropic for vision — best of both ───────────
+
+public sealed class HybridAiClient : IAiClient
+{
+    private readonly IHttpClientFactory _factory;
+    private readonly AiOptions          _opts;
+
+    public HybridAiClient(IHttpClientFactory factory, IOptions<AiOptions> opts)
+    {
+        _factory = factory;
+        _opts    = opts.Value;
+    }
+
+    public Task<string> ChatAsync(string systemPrompt, AiMessage message, CancellationToken ct = default)
+    {
+        bool   hasImage      = !string.IsNullOrEmpty(message.ImageBase64);
+        string providerName  = hasImage ? _opts.VisionProvider : _opts.TextProvider;
+        var    cfg           = _opts.GetProvider(providerName);
+
+        // Create a fresh HttpClient from factory (properly pooled + Polly retry applied)
+        var http = _factory.CreateClient("ai");
+
+        IAiClient inner = cfg.Protocol.Equals("anthropic", StringComparison.OrdinalIgnoreCase)
+            ? new AnthropicAiClient(http, cfg)
+            : new OpenAiCompatibleAiClient(http, cfg);
+
+        return inner.ChatAsync(systemPrompt, message, ct);
     }
 }
 
