@@ -19,7 +19,8 @@ public sealed class KBotOptions
 public sealed class AiOptions
 {
     public string BaseUrl { get; set; } = "";
-    public string Model { get; set; } = "";
+    public string ApiKey { get; set; } = "";
+    public string Model { get; set; } = "deepseek-chat";
     public decimal MonthlyBudgetUsd { get; set; }
 }
 

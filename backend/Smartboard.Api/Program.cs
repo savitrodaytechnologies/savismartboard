@@ -15,6 +15,9 @@ using Smartboard.Api.Services.Dev;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load local overrides (gitignored) — put your API keys here instead of appsettings.Development.json
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+
 // Logging
 builder.Host.UseSerilog((ctx, lc) => lc
     .ReadFrom.Configuration(ctx.Configuration)
