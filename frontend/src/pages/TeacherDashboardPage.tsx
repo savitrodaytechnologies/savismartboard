@@ -8,6 +8,20 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { clearSession, getUser } from '@/pages/LoginPage';
 import type { ClassDto, SubjectDto, TopicDto } from '@/types';
 
+// Persist deleted session IDs across navigation (survives remount, cleared on hard refresh)
+const DELETED_KEY = 'sb_deleted_sessions';
+function getDeletedIds(): Set<number> {
+    try { return new Set(JSON.parse(sessionStorage.getItem(DELETED_KEY) ?? '[]')); } catch { return new Set(); }
+}
+function addDeletedId(id: number) {
+    const s = getDeletedIds(); s.add(id);
+    sessionStorage.setItem(DELETED_KEY, JSON.stringify([...s]));
+}
+function filterDeleted(sessions: RecentSession[]): RecentSession[] {
+    const deleted = getDeletedIds();
+    return deleted.size ? sessions.filter(s => !deleted.has(s.sessionId)) : sessions;
+}
+
 export default function TeacherDashboardPage() {
     const navigate = useNavigate(); const isOnline = useOnlineStatus();
     // Cascading pickers
@@ -28,12 +42,12 @@ export default function TeacherDashboardPage() {
     const [deleting, setDeleting] = useState(false);
     async function loadLocalSessions() {
         const locals = await db.sessions.orderBy('updatedAt').reverse().limit(10).toArray();
-        setRecentSessions(locals.map(s => ({
+        setRecentSessions(filterDeleted(locals.map(s => ({
             sessionId: s.serverSessionId ?? (s.sessionId as number),
             status: s.status,
             startedAt: s.startedAt,
             sessionTitle: s.sessionTitle,
-        })));
+        }))));
     }
     // Load classes on mount
     useEffect(() => {
@@ -46,7 +60,7 @@ export default function TeacherDashboardPage() {
         setSessionsLoading(true);
         if (isOnline) {
             smartboardSessionService.recent()
-                .then((data: RecentSession[]) => setRecentSessions(data))
+                .then((data: RecentSession[]) => setRecentSessions(filterDeleted(data)))
                 .catch(() => loadLocalSessions())
                 .finally(() => setSessionsLoading(false));
         } else {
@@ -74,17 +88,19 @@ export default function TeacherDashboardPage() {
         if (!deleteTarget) return;
         setDeleting(true);
         const id = deleteTarget.sessionId;
+        // Mark as deleted client-side immediately — survives remount/navigation
+        addDeletedId(id);
         try {
             if (isOnline) {
                 await smartboardSessionService.delete(id);
             }
-            // Remove from local DB (best-effort — may not exist locally)
-            await db.sessions.delete(id as unknown as string);
-            await db.pages.where('sessionId').equals(id as unknown as number).delete();
+            // Remove from local DB — try both number key and string key variants
+            await db.sessions.delete(id);
+            await db.sessions.delete(String(id) as unknown as number);
+            await db.pages.where('sessionId').equals(id).delete();
         } catch {
-            // swallow — session may already be gone
+            // swallow — session may already be gone on the server
         } finally {
-            // Always remove from the list even if the API call failed
             setRecentSessions(prev => prev.filter(s => s.sessionId !== id));
             setDeleting(false);
             setDeleteTarget(null);
