@@ -16,12 +16,25 @@ public sealed class KBotOptions
     public string BaseUrl { get; set; } = "";
 }
 
-public sealed class AiOptions
+public sealed class AiProviderConfig
 {
     public string BaseUrl { get; set; } = "";
-    public string ApiKey { get; set; } = "";
-    public string Model { get; set; } = "deepseek-chat";
+    public string ApiKey  { get; set; } = "";
+    public string Model   { get; set; } = "";
+}
+
+public sealed class AiOptions
+{
+    public string  ActiveProvider  { get; set; } = "deepseek";
     public decimal MonthlyBudgetUsd { get; set; }
+    public Dictionary<string, AiProviderConfig> Providers { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Returns the config block for the currently active provider.</summary>
+    public AiProviderConfig Active =>
+        Providers.TryGetValue(ActiveProvider, out var p)
+            ? p
+            : throw new InvalidOperationException($"No AI provider config for '{ActiveProvider}'.");
 }
 
 public sealed class S3Options

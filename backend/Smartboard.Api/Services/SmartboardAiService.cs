@@ -52,16 +52,11 @@ public sealed class SmartboardAiService : ISmartboardAiService
             ? mapped
             : req.Instruction;
 
-        // Build user content — vision array when image is present, plain string otherwise
-        object userContent = string.IsNullOrEmpty(req.ImageBase64)
-            ? (object)task
-            : new object[]
-              {
-                  new { type = "image_url", image_url = new { url = $"data:image/jpeg;base64,{req.ImageBase64}" } },
-                  new { type = "text", text = task },
-              };
+        var message = string.IsNullOrEmpty(req.ImageBase64)
+            ? new AiMessage(task)
+            : new AiMessage(task, req.ImageBase64);
 
-        var result = await _client.ChatAsync(SystemPrompt, userContent, ct);
+        var result = await _client.ChatAsync(SystemPrompt, message, ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
@@ -70,43 +65,43 @@ public sealed class SmartboardAiService : ISmartboardAiService
     public async Task<AiPromptResponse> ExplainDifferentlyAsync(AiPromptRequest req, CancellationToken ct = default)
     {
         var result = await _client.ChatAsync(SystemPrompt,
-            $"Explain the following concept using a different approach, analogy, or example:\n\n{req.Instruction}", ct);
+            new AiMessage($"Explain the following concept using a different approach, analogy, or example:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> SimplifyAsync(AiPromptRequest req, CancellationToken ct = default)
     {
         var result = await _client.ChatAsync(SystemPrompt,
-            $"Simplify the following concept or explanation so a struggling student can understand it easily:\n\n{req.Instruction}", ct);
+            new AiMessage($"Simplify the following concept or explanation so a struggling student can understand it easily:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> LocalExampleAsync(AiPromptRequest req, CancellationToken ct = default)
     {
         var result = await _client.ChatAsync(SystemPrompt,
-            $"Give a relatable real-life example from an Indian context (e.g. local food, festivals, daily life) " +
-            $"to illustrate the following concept:\n\n{req.Instruction}", ct);
+            new AiMessage($"Give a relatable real-life example from an Indian context (e.g. local food, festivals, daily life) " +
+                          $"to illustrate the following concept:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> QuickQuizAsync(AiPromptRequest req, CancellationToken ct = default)
     {
         var result = await _client.ChatAsync(SystemPrompt,
-            $"Write 3 short quiz questions (with answers) to test understanding of:\n\n{req.Instruction}", ct);
+            new AiMessage($"Write 3 short quiz questions (with answers) to test understanding of:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> SummaryAsync(AiPromptRequest req, CancellationToken ct = default)
     {
         var result = await _client.ChatAsync(SystemPrompt,
-            $"Write a concise 3–5 sentence summary of the following topic suitable for a student's revision notes:\n\n{req.Instruction}", ct);
+            new AiMessage($"Write a concise 3-5 sentence summary of the following topic suitable for a student's revision notes:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> HomeworkAsync(AiPromptRequest req, CancellationToken ct = default)
     {
         var result = await _client.ChatAsync(SystemPrompt,
-            $"Suggest 3 appropriate homework problems or activities for students who have just learned:\n\n{req.Instruction}", ct);
+            new AiMessage($"Suggest 3 appropriate homework problems or activities for students who have just learned:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 }
