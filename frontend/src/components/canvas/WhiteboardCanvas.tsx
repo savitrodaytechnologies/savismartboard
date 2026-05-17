@@ -241,7 +241,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             setStagePos(prev => ({ x: prev.x + dx, y: prev.y + dy }));
             return;
         }
-        if (!isDrawing.current) return;
+        if (!isDrawing.current && !isLasso.current) return;
 
         const stage = e.target.getStage()!;
         const { x, y } = getWorldPos(stage);
