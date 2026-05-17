@@ -47,7 +47,8 @@ public sealed class OpenAiCompatibleAiClient : IAiClient
         var cfg = _opts.Active;
 
         // Vision: array of content objects. Text-only: plain string.
-        object userContent = string.IsNullOrEmpty(message.ImageBase64)
+        // Only send image if the configured model actually supports vision (cfg.Vision == true).
+        object userContent = (string.IsNullOrEmpty(message.ImageBase64) || !cfg.Vision)
             ? (object)message.Text
             : new object[]
               {
@@ -114,9 +115,9 @@ public sealed class AnthropicAiClient : IAiClient
     {
         var cfg = _opts.Active;
 
-        // Claude content array: image first (if any), then text
+        // Claude content array: image first (if any, and only if Vision is enabled), then text
         var contentItems = new List<object>();
-        if (!string.IsNullOrEmpty(message.ImageBase64))
+        if (!string.IsNullOrEmpty(message.ImageBase64) && cfg.Vision)
         {
             contentItems.Add(new
             {

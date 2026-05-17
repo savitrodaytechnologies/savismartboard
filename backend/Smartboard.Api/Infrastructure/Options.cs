@@ -21,6 +21,8 @@ public sealed class AiProviderConfig
     public string BaseUrl { get; set; } = "";
     public string ApiKey  { get; set; } = "";
     public string Model   { get; set; } = "";
+    /// <summary>True only for models that accept image_url content (e.g. gpt-4o, claude-3). DeepSeek text models do NOT support vision.</summary>
+    public bool   Vision  { get; set; } = false;
 }
 
 public sealed class AiOptions
