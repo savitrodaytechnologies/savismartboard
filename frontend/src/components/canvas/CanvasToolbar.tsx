@@ -1,6 +1,6 @@
 import type { Annotation } from '@/types';
 
-export type DrawingTool = 'pen' | 'highlighter' | 'text' | 'eraser' | 'rect' | 'circle' | 'arrow' | 'select' | 'smart';
+export type DrawingTool = 'pen' | 'highlighter' | 'text' | 'eraser' | 'rect' | 'circle' | 'arrow' | 'select' | 'smart' | 'lasso';
 
 export interface ToolState {
     tool: DrawingTool;
@@ -34,6 +34,7 @@ const TOOLS: { id: DrawingTool; label: string; icon: string }[] = [
     { id: 'eraser', label: 'Eraser', icon: '⬜' },
     { id: 'smart', label: 'Smart Shape (auto-detect)', icon: '✦' },
     { id: 'select', label: 'Pan (Space+drag)', icon: '✋' },
+    { id: 'lasso', label: 'Select & Ask AI', icon: '⭕' },
 ];
 
 export function makeAnnotationId() {

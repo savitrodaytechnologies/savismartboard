@@ -16,43 +16,55 @@
 
 ---
 
-## 1. Dual Board System (from GyanBot reference)
+## 1. Dual Board System — AI Assist Panel
 
-**Source:** GyanBot Smart Board blueprint (AI Gurukul, May 2026)  
-**Status:** `[DISCUSSED]`
+**Source:** GyanBot Smart Board blueprint (AI Gurukul, May 2026) + team discussion (17 May 2026)  
+**Status:** `[ADOPTED]` — **implemented in v1 as a 70/30 split with teacher-triggered capture**
 
-### Concept
-Split the teaching screen into two halves:
+### Confirmed interaction model (17 May 2026)
+The "private right screen" requirement was dropped — on a physical classroom smartboard the entire screen is visible to students anyway.  
+Instead, both sides are visible and the right panel is the **AI Assist Panel**:
 
-| Side | Name | Visible to students? | Purpose |
-|---|---|---|---|
-| Left | **Active Board** | Yes | The teaching surface — only what the teacher places here |
-| Right | **Pilot Board** | No (teacher only) | AI pre-loads 3 relevant options automatically |
+```
+┌─────────────────────────────────┬──────────────────┐
+│                                 │  AI Assist Panel  │
+│   Active Board (70%)            │  ┌─────────────┐  │
+│   Teacher writes here freely    │  │ Solution    │  │
+│                                 │  │ Explain     │  │
+│                                 │  │ Mistakes    │  │
+│                                 │  │ Quiz        │  │
+│                                 │  └─────────────┘  │
+└─────────────────────────────────┴──────────────────┘
+```
 
-The teacher's only gesture is: **drag from right → left, under 2 seconds, no menus.**
+### How it works
+1. Teacher writes on the left canvas
+2. Teacher selects the **Lasso** tool (⭕) and circles the relevant area
+3. A dashed selection box appears; an **"Ask AI ✨"** button appears near the selection
+4. Teacher taps "Ask AI ✨" → the circled region is captured as an image
+5. Right panel activates: 4 tabs load in the background (Solution, Explain, Mistakes, Quiz)
+6. Teacher browses tabs while the class is looking at the board
 
-### The 8 design principles from the reference
-1. Left board belongs to the teacher — AI never pushes to it automatically
-2. Three options on the pilot, never more — prevents choice paralysis
-3. Writing is teaching — the system enhances handwriting, never replaces it
-4. Face the students more — every feature measured by how little time teacher faces the board
-5. One tap or one drag, always — two taps is the maximum
-6. Curriculum-first, not geography-first — every content decision starts with the teacher's curriculum profile (see §5)
-7. Teaching aid, not surveillance tool — data captures *what was taught*, never *how the teacher performed*
-8. Silence has value — the student attempt phase is deliberate stillness; AI waits
+### Right panel tabs
 
-### What the pilot board shows
-- 3 draggable content options auto-loaded by AI when it detects a formula/concept on the active board
-- A **mistake/error card** pre-loaded for the most common wrong approach to the current concept
-- A **key-points checklist** tracking coverage (e.g. "formula written ✓ / units covered ✓ / application shown ○")
-- Exam alignment flag (e.g. "CBSE 2023 Board — 3 marks" or "IB May 2024")
-- A "WAIT" signal during the student attempt phase — AI tells the teacher to step back
+| Tab | What it shows |
+|---|---|
+| Solution | Step-by-step worked answer for the circled content |
+| Explain | Alternative explanation / simplification |
+| Mistakes | Most common student errors for this topic |
+| Quiz | A quick question the teacher can pose to the class |
 
-### Questions to resolve before adopting
-- Does the pilot board replace the KBot browse panel, or is it a separate view?
-- Who manages the classroom display? Does the student projection need to be a separate window/output?
-- Is drag-from-pilot the right gesture on a touch screen vs a mouse-based interface?
-- Does this require a hardware dual-screen setup or a software split-screen?
+### What was simplified vs. the original GyanBot vision
+- No private screen requirement → simpler hardware (any single display)
+- Teacher triggers AI explicitly (circle + tap) rather than AI monitoring passively
+- Right panel always visible (not revealed on demand) — students can see it too
+- Split is 70/30 (not 50/50) — writing board stays dominant
+
+### Still valid design principles from the original
+1. Teacher controls what goes on the board — AI never writes on the board automatically
+2. Writing is teaching — the canvas is the primary surface
+3. Teaching aid, not surveillance tool
+4. Explicit teacher gesture required before AI activates
 
 ---
 

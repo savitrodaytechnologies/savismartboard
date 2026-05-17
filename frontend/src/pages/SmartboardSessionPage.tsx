@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { Annotation } from '@/types';
 import { useSmartboardSession } from '@/hooks/useSmartboardSession';
 import WhiteboardCanvas from '@/components/canvas/WhiteboardCanvas';
+import AiAssistPanel from '@/components/canvas/AiAssistPanel';
 import CanvasToolbar, { type ToolState } from '@/components/canvas/CanvasToolbar';
 import PageStrip from '@/components/canvas/PageStrip';
 
@@ -35,6 +36,12 @@ export default function SmartboardSessionPage() {
     const saveViewport = useCallback((v: { scale: number; pos: { x: number; y: number } }) => {
         viewportStore.current[currentPageIndex] = v;
     }, [currentPageIndex]);
+
+    // AI Assist Panel — query set when teacher uses the lasso tool and taps "Ask AI ✨"
+    const [aiQuery, setAiQuery] = useState<{ dataUrl: string; timestamp: number } | null>(null);
+    const handleAiCapture = useCallback((dataUrl: string) => {
+        setAiQuery({ dataUrl, timestamp: Date.now() });
+    }, []);
 
     // Per-page undo/redo stacks (keyed by pageIndex)
     const [undoStacks, setUndoStacks] = useState<Record<number, Annotation[][]>>({});
@@ -104,7 +111,10 @@ export default function SmartboardSessionPage() {
     const effectiveTool: ToolState = readOnly ? { ...toolState, tool: 'select' } : toolState;
 
     return (
-        <div className="flex flex-col h-screen bg-slate-950 overflow-hidden">
+        <div className="flex h-screen bg-slate-950 overflow-hidden">
+
+            {/* ── Left: canvas area (70%) ──────────────────────────────────── */}
+            <div className="flex flex-col" style={{ width: '70%', minWidth: 0 }}>
             {currentPage && (
                 <WhiteboardCanvas
                     page={currentPage}
@@ -116,6 +126,7 @@ export default function SmartboardSessionPage() {
                     onRedoClear={clearRedo}
                     savedViewport={viewportStore.current[currentPageIndex]}
                     onViewportChange={saveViewport}
+                    onAiCapture={readOnly ? undefined : handleAiCapture}
                 />
             )}
 
@@ -140,6 +151,12 @@ export default function SmartboardSessionPage() {
                 sessionTitle={`Session #${id}`}
                 readOnly={readOnly}
             />
+            </div>
+
+            {/* ── Right: AI Assist Panel (30%) ─────────────────────────────── */}
+            <div style={{ width: '30%', minWidth: '220px' }}>
+                <AiAssistPanel query={aiQuery} sessionId={Number(id) || undefined} />
+            </div>
 
             {/* ── Clear page confirmation modal ─────────────────── */}
             {showClearConfirm && (

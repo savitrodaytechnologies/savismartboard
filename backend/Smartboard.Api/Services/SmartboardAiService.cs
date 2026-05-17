@@ -13,6 +13,7 @@ public interface ISmartboardAiService
     Task<AiPromptResponse> QuickQuizAsync(AiPromptRequest req, CancellationToken ct = default);
     Task<AiPromptResponse> SummaryAsync(AiPromptRequest req, CancellationToken ct = default);
     Task<AiPromptResponse> HomeworkAsync(AiPromptRequest req, CancellationToken ct = default);
+    Task<AiPromptResponse> AskSelectionAsync(AiSelectionRequest req, CancellationToken ct = default);
 }
 
 // TODO: Parivesh — implement grounded prompt templates and budget enforcement.
@@ -38,4 +39,6 @@ public sealed class SmartboardAiService : ISmartboardAiService
     public Task<AiPromptResponse> QuickQuizAsync(AiPromptRequest req, CancellationToken ct = default) => Stub("quick-quiz", req);
     public Task<AiPromptResponse> SummaryAsync(AiPromptRequest req, CancellationToken ct = default) => Stub("summary", req);
     public Task<AiPromptResponse> HomeworkAsync(AiPromptRequest req, CancellationToken ct = default) => Stub("homework", req);
+    public Task<AiPromptResponse> AskSelectionAsync(AiSelectionRequest req, CancellationToken ct = default)
+        => Task.FromResult(new AiPromptResponse($"[ask-selection/{req.Instruction}] (AI not yet wired — stub response)", 0, 0m));
 }

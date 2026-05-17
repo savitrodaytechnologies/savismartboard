@@ -12,3 +12,4 @@ public sealed record ExportRequest(string ExportType);
 public sealed record ShareRequest(IReadOnlyList<int> StudentIds, IReadOnlyList<int>? ParentIds, DateTime? ExpiresAt);
 public sealed record AiPromptRequest(long? SessionId, string? SourceType, long? SourceId, string Instruction);
 public sealed record AiPromptResponse(string Result, int TokenCount, decimal CostUsd);
+public sealed record AiSelectionRequest(string ImageBase64, string Instruction, long? SessionId);

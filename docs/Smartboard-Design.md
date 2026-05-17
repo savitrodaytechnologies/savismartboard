@@ -558,6 +558,81 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 2. `SmartboardContextService` — swap KBot proxy for real Savischools class/subject/topic data.
 3. M4 classroom mode — question hide/reveal UI + insert solved card into board.
 4. M5 export — PDF generation pipeline (server-side preferred; `pdf-lib` client fallback).
+5. AI Assist Panel — plug in real AI provider; `SmartboardAiService.AskSelectionAsync` currently stubs response.
+
+---
+
+## 17. AI Assist Panel (Dual Board Feature)
+
+> Added: 17 May 2026. Status: frontend + API shape implemented; AI is stubbed.
+
+### 17.1 Layout
+
+The session page uses a **70/30 horizontal split**:
+
+```
+┌──────────────────────────────────┬─────────────────────┐
+│                                  │   AI Assist Panel   │
+│   WhiteboardCanvas (70%)         │   4 tabs (30%)      │
+│                                  │                     │
+├──────────────────────────────────┤                     │
+│   PageStrip                      │                     │
+├──────────────────────────────────┤                     │
+│   CanvasToolbar                  │                     │
+└──────────────────────────────────┴─────────────────────┘
+```
+
+### 17.2 Interaction flow
+
+1. Teacher draws on the left canvas
+2. Teacher selects the **Lasso** tool (⭕) from the toolbar
+3. Teacher draws a freehand lasso around the relevant content
+4. A dashed bounding-box rectangle appears over the selection
+5. An **"Ask AI ✨"** floating button appears below the selection on the canvas
+6. Teacher taps "Ask AI ✨"
+7. The selected region is captured as a JPEG image (Konva `stage.toDataURL` with clip rect)
+8. The image is sent to `POST /api/smartboard/ai/ask-selection` with an `instruction` field per tab
+9. Right panel activates; tabs load lazily on first view
+
+### 17.3 Right panel tabs
+
+| Tab | Instruction sent to AI | Shows |
+|---|---|---|
+| Solution | `"solution"` | Step-by-step worked answer |
+| Explain | `"explain"` | Alternative explanation / simplification |
+| Mistakes | `"mistakes"` | Common student errors for this content |
+| Quiz | `"quiz"` | A quick question to pose to the class |
+
+### 17.4 API — ask-selection endpoint
+
+```
+POST /api/smartboard/ai/ask-selection
+Body: { imageBase64: string, instruction: string, sessionId?: number }
+Response: { result: string, tokenCount: number, costUsd: number }
+```
+
+The image is a JPEG data URL (`data:image/jpeg;base64,...`) of the circled region of the canvas. The backend strips the prefix before passing to the AI provider.
+
+### 17.5 Frontend components
+
+| Component | File | Purpose |
+|---|---|---|
+| `AiAssistPanel` | `components/canvas/AiAssistPanel.tsx` | Tabbed right panel; manages per-tab fetch lifecycle |
+| Lasso tool | `WhiteboardCanvas.tsx` | Freehand selection → bbox → floating "Ask AI ✨" button → `onAiCapture(dataUrl)` |
+| `aiService.askSelection` | `services/aiService.ts` | `POST /api/smartboard/ai/ask-selection` wrapper |
+
+### 17.6 Backend
+
+| Layer | File | Change |
+|---|---|---|
+| DTO | `SessionDtos.cs` | Added `AiSelectionRequest(string ImageBase64, string Instruction, long? SessionId)` |
+| Interface + stub | `SmartboardAiService.cs` | Added `AskSelectionAsync`; stub returns placeholder |
+| Controller | `SmartboardAiController.cs` | Added `POST ask-selection`; changed to `[AllowAnonymous]` (temporary, same as all other controllers) |
+
+### 17.7 Limitations (current stub phase)
+- AI response is a stub: `[ask-selection] {instruction}` — no real AI call made
+- Image is captured from the Konva canvas only (annotations layer); KBot HTML background is a separate DOM element and is **not** included in the capture. This means if the teacher circles a KBot card background, only their annotations over it are captured.  Future: use `html2canvas` or a server-side screen capture to include the full visible area.
+- Image size is not compressed before sending; very large selections (full canvas) may produce large payloads. TODO: cap at 800×600 px client-side before encoding.
 5. M5 share — signed URL delivery to Savischools student/parent portal.
 6. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
 7. S3 cleanup on session delete — `DeleteSessionAsync` currently only removes SQL rows; S3 objects for deleted sessions are not yet purged.

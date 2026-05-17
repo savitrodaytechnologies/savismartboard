@@ -6,7 +6,7 @@ using Smartboard.Api.Services;
 namespace Smartboard.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[AllowAnonymous]
 [Route("api/smartboard/ai")]
 public sealed class SmartboardAiController : ControllerBase
 {
@@ -30,4 +30,7 @@ public sealed class SmartboardAiController : ControllerBase
 
     [HttpPost("homework")]
     public Task<AiPromptResponse> Homework([FromBody] AiPromptRequest req, CancellationToken ct) => _svc.HomeworkAsync(req, ct);
+
+    [HttpPost("ask-selection")]
+    public Task<AiPromptResponse> AskSelection([FromBody] AiSelectionRequest req, CancellationToken ct) => _svc.AskSelectionAsync(req, ct);
 }

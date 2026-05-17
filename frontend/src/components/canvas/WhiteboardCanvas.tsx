@@ -36,11 +36,12 @@ interface Props {
     onRedoClear: () => void;
     savedViewport?: { scale: number; pos: { x: number; y: number } };
     onViewportChange: (v: { scale: number; pos: { x: number; y: number } }) => void;
+    onAiCapture?: (dataUrl: string) => void;
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear, savedViewport, onViewportChange }: Props) {
+export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear, savedViewport, onViewportChange, onAiCapture }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const stageRef = useRef<Konva.Stage>(null);
 
@@ -84,6 +85,12 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const [previewEnd, setPreviewEnd] = useState<{ x: number; y: number } | null>(null);
     const isDrawing = useRef(false);
 
+    // Lasso selection
+    const isLasso = useRef(false);
+    const lassoPointsRef = useRef<number[]>([]);
+    const [lassoPoints, setLassoPoints] = useState<number[]>([]);
+    const [lassoBox, setLassoBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
     // Pan state
     const isPanning = useRef(false);
     const lastPanClient = useRef<{ x: number; y: number } | null>(null);
@@ -123,6 +130,16 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             window.removeEventListener('keyup', onUp);
         };
     }, []);
+
+    // Clear lasso selection when switching away from lasso tool
+    useEffect(() => {
+        if (toolState.tool !== 'lasso') {
+            setLassoBox(null);
+            setLassoPoints([]);
+            lassoPointsRef.current = [];
+            isLasso.current = false;
+        }
+    }, [toolState.tool]);
 
     // Window-level mouse handlers for scrollbar thumb drag
     useEffect(() => {
@@ -208,6 +225,11 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             setShapeStart({ x, y });
             setPreviewShape({ x, y, w: 0, h: 0 });
             setPreviewEnd(null);
+        } else if (toolState.tool === 'lasso') {
+            isLasso.current = true;
+            lassoPointsRef.current = [x, y];
+            setLassoPoints([x, y]);
+            setLassoBox(null);
         }
     }, [toolState.tool, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear, isPanTool]);
 
@@ -236,6 +258,12 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 w: Math.abs(x - shapeStart.x),
                 h: Math.abs(y - shapeStart.y),
             });
+        } else if (isLasso.current) {
+            lassoPointsRef.current.push(x, y);
+            // Throttle state updates to reduce re-renders during fast drawing
+            if (lassoPointsRef.current.length % 8 === 0) {
+                setLassoPoints([...lassoPointsRef.current]);
+            }
         }
     }, [toolState.tool, getWorldPos, shapeStart]);
 
@@ -243,6 +271,23 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         if (isPanning.current) {
             isPanning.current = false;
             lastPanClient.current = null;
+            return;
+        }
+        // Lasso selection completion
+        if (isLasso.current) {
+            isLasso.current = false;
+            const pts = lassoPointsRef.current;
+            if (pts.length >= 4) {
+                const xs = pts.filter((_, i) => i % 2 === 0);
+                const ys = pts.filter((_, i) => i % 2 === 1);
+                const minX = Math.min(...xs), maxX = Math.max(...xs);
+                const minY = Math.min(...ys), maxY = Math.max(...ys);
+                if (maxX - minX > 10 && maxY - minY > 10) {
+                    setLassoBox({ x: minX, y: minY, w: maxX - minX, h: maxY - minY });
+                }
+            }
+            setLassoPoints([]);
+            lassoPointsRef.current = [];
             return;
         }
         if (!isDrawing.current) return;
@@ -310,6 +355,27 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         setStageScale(1);
         setStagePos({ x: 0, y: 0 });
     }, []);
+
+    // ── Ask AI (lasso capture) ───────────────────────────────────────────────
+    const handleAskAi = useCallback(() => {
+        if (!lassoBox || !stageRef.current || !onAiCapture) return;
+        const sx = lassoBox.x * stageScale + stagePos.x;
+        const sy = lassoBox.y * stageScale + stagePos.y;
+        const sw = lassoBox.w * stageScale;
+        const sh = lassoBox.h * stageScale;
+        const dataUrl = stageRef.current.toDataURL({
+            x: sx, y: sy,
+            width: Math.max(1, sw),
+            height: Math.max(1, sh),
+            pixelRatio: 1,
+            mimeType: 'image/jpeg',
+            quality: 0.85,
+        });
+        onAiCapture(dataUrl);
+        setLassoBox(null);
+        setLassoPoints([]);
+        lassoPointsRef.current = [];
+    }, [lassoBox, stageScale, stagePos, onAiCapture]);
 
     // ── Render committed annotations ─────────────────────────────────────────
     // Hit stroke width for eraser — makes strokes much easier to target
@@ -475,6 +541,28 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                     {previewEnd && shapeStart && toolState.tool === 'arrow' && (
                         <Arrow points={[shapeStart.x, shapeStart.y, previewEnd.x, previewEnd.y]} stroke={toolState.color} strokeWidth={toolState.strokeWidth} fill={toolState.color} dash={[4, 3]} pointerLength={10} pointerWidth={8} />
                     )}
+
+                    {/* Live lasso freehand preview */}
+                    {lassoPoints.length >= 4 && toolState.tool === 'lasso' && (
+                        <Line
+                            points={lassoPoints}
+                            stroke="#6366f1" strokeWidth={2}
+                            opacity={0.8}
+                            tension={0.4} lineCap="round" lineJoin="round"
+                            dash={[4, 3]}
+                        />
+                    )}
+
+                    {/* Lasso selection bounding box */}
+                    {lassoBox && (
+                        <Rect
+                            x={lassoBox.x} y={lassoBox.y}
+                            width={lassoBox.w} height={lassoBox.h}
+                            stroke="#6366f1" strokeWidth={2}
+                            dash={[6, 4]}
+                            fill="rgba(99,102,241,0.08)"
+                        />
+                    )}
                 </Layer>
             </Stage>
 
@@ -558,6 +646,23 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
             {/* Corner square */}
             <div className="absolute right-0 bottom-0 z-20 bg-slate-200/60" style={{ width: SB, height: SB }} />
+
+            {/* Ask AI floating button — appears below the lasso selection box */}
+            {lassoBox && onAiCapture && (() => {
+                const bx = lassoBox.x * stageScale + stagePos.x;
+                const by = lassoBox.y * stageScale + stagePos.y;
+                const bw = lassoBox.w * stageScale;
+                const bh = lassoBox.h * stageScale;
+                return (
+                    <button
+                        className="absolute z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-900/50 transition-colors select-none"
+                        style={{ left: bx + bw / 2, top: by + bh + 10, transform: 'translateX(-50%)' }}
+                        onClick={handleAskAi}
+                    >
+                        ✨ Ask AI
+                    </button>
+                );
+            })()}
         </div>
     );
 }
