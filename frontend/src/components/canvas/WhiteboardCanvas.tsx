@@ -85,6 +85,13 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const [previewEnd, setPreviewEnd] = useState<{ x: number; y: number } | null>(null);
     const isDrawing = useRef(false);
 
+    // Inline text input overlay (replaces window.prompt which is blocked in some environments)
+    const [textInput, setTextInput] = useState<{ screenX: number; screenY: number; worldX: number; worldY: number } | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    // Always-current ref so handleMouseDown (useCallback) can read latest textInput without being re-created
+    const textInputRef = useRef(textInput);
+    textInputRef.current = textInput;
+
     // Lasso selection
     const isLasso = useRef(false);
     const lassoPointsRef = useRef<number[]>([]);
@@ -225,6 +232,11 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             setShapeStart({ x, y });
             setPreviewShape({ x, y, w: 0, h: 0 });
             setPreviewEnd(null);
+        } else if (toolState.tool === 'text') {
+            // Commit any existing open text input before opening a new one
+            if (textareaRef.current) commitText(textareaRef.current.value, textInputRef.current);
+            const ptr = stage.getPointerPosition();
+            if (ptr) setTextInput({ screenX: ptr.x, screenY: ptr.y, worldX: x, worldY: y });
         } else if (toolState.tool === 'lasso') {
             isLasso.current = true;
             lassoPointsRef.current = [x, y];
@@ -325,17 +337,15 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         }
     }, [toolState, activePoints, shapeStart, onCommit, getWorldPos]);
 
-    const handleDoubleClick = useCallback((e: KonvaEventObject<MouseEvent>) => {
-        if (toolState.tool !== 'text') return;
-        const stage = e.target.getStage()!;
-        const { x, y } = getWorldPos(stage);
-        const text = window.prompt('Enter text:');
-        if (text) {
+    const commitText = useCallback((value: string, pos: { worldX: number; worldY: number } | null) => {
+        setTextInput(null);
+        const trimmed = value.trim();
+        if (trimmed && pos) {
             onUndoPush([...page.annotations]);
             onRedoClear();
-            onCommit(prev => [...prev, buildTextAnnotation(x, y, text, toolState)]);
+            onCommit(prev => [...prev, buildTextAnnotation(pos.worldX, pos.worldY, trimmed, toolState)]);
         }
-    }, [toolState, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear]);
+    }, [toolState, page.annotations, onCommit, onUndoPush, onRedoClear]);
 
     // ── Zoom button helpers ──────────────────────────────────────────────────
     const zoomBy = useCallback((factor: number) => {
@@ -458,6 +468,35 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
 
     return (
         <div ref={containerRef} className="relative flex-1 bg-neutral-50 overflow-hidden">
+            {/* Inline text input — appears at click position when text tool is active */}
+            {textInput && (
+                <div className="absolute z-20" style={{ left: textInput.screenX, top: textInput.screenY }}>
+                    <textarea
+                        ref={textareaRef}
+                        autoFocus
+                        rows={1}
+                        placeholder="Type here…"
+                        className="bg-transparent border-0 outline outline-2 outline-dashed outline-blue-400 rounded p-0.5 resize-none leading-none m-0"
+                        style={{
+                            color: toolState.color,
+                            fontSize: (toolState.strokeWidth * 6 + 12) * stageScale,
+                            fontFamily: 'sans-serif',
+                            minWidth: 80,
+                            lineHeight: 1.2,
+                        }}
+                        onInput={e => {
+                            // Auto-grow height
+                            const el = e.currentTarget;
+                            el.style.height = 'auto';
+                            el.style.height = el.scrollHeight + 'px';
+                        }}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(e.currentTarget.value, textInput); }
+                            if (e.key === 'Escape') setTextInput(null);
+                        }}
+                    />
+                </div>
+            )}
 
             {/* HTML background (KBot card) — transformed with stage */}
             {page.background.kind === 'html' && page.background.html && (
@@ -497,7 +536,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 }}
                 onMouseLeave={() => setEraserPos(null)}
                 onMouseUp={handleMouseUp}
-                onDblClick={handleDoubleClick}
+                onDblClick={() => {}}
             >
                 <Layer>
                     {/* Paper background — destination-out eraser clears to this white rect, not to transparency */}
