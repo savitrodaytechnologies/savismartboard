@@ -135,7 +135,7 @@ public sealed class AnthropicAiClient : IAiClient
             messages   = new[] { new { role = "user", content = (object)contentItems } },
         }, JsonOpts);
 
-        using var req = new HttpRequestMessage(HttpMethod.Post, "messages")
+        using var req = new HttpRequestMessage(HttpMethod.Post, new Uri(_http.BaseAddress!, "messages"))
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json"),
         };
