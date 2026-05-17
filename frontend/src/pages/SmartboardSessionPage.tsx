@@ -1,5 +1,5 @@
 // Owner: Parivesh (Smartboard core)
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Annotation } from '@/types';
 import { useSmartboardSession } from '@/hooks/useSmartboardSession';
