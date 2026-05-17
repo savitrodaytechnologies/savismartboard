@@ -292,18 +292,31 @@ export default function TeacherDashboardPage() {
                                             <tr key={s.sessionId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                                 <td className="py-2 pr-3 text-slate-800 font-medium max-w-52">
                                                     {renameTarget === s.sessionId ? (
-                                                        <input
-                                                            autoFocus
-                                                            className="w-full border border-blue-400 rounded px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                                                            value={renameValue}
-                                                            disabled={renaming}
-                                                            onChange={e => setRenameValue(e.target.value)}
-                                                            onKeyDown={e => {
-                                                                if (e.key === 'Enter') commitRename(s.sessionId);
-                                                                if (e.key === 'Escape') cancelRename();
-                                                            }}
-                                                            onBlur={() => commitRename(s.sessionId)}
-                                                        />
+                                                        <div className="flex items-center gap-1">
+                                                            <input
+                                                                autoFocus
+                                                                className="flex-1 min-w-0 border border-blue-400 rounded px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                                                                value={renameValue}
+                                                                disabled={renaming}
+                                                                onChange={e => setRenameValue(e.target.value)}
+                                                                onKeyDown={e => {
+                                                                    if (e.key === 'Enter') commitRename(s.sessionId);
+                                                                    if (e.key === 'Escape') cancelRename();
+                                                                }}
+                                                            />
+                                                            <button
+                                                                onClick={() => commitRename(s.sessionId)}
+                                                                disabled={renaming}
+                                                                className="shrink-0 text-green-600 hover:text-green-700 disabled:opacity-40 text-base leading-none"
+                                                                title="Save"
+                                                            >✓</button>
+                                                            <button
+                                                                onClick={cancelRename}
+                                                                disabled={renaming}
+                                                                className="shrink-0 text-slate-400 hover:text-slate-600 disabled:opacity-40 text-base leading-none"
+                                                                title="Cancel"
+                                                            >✕</button>
+                                                        </div>
                                                     ) : (
                                                         <span className="truncate block">{s.sessionTitle ?? `Session #${s.sessionId}`}</span>
                                                     )}
