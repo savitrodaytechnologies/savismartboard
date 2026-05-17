@@ -117,13 +117,21 @@ export default function TeacherDashboardPage() {
         if (!title) { cancelRename(); return; }
         setRenaming(true);
         try {
-            if (isOnline) await smartboardSessionService.rename(sessionId, title);
-            await db.sessions.update(sessionId, { sessionTitle: title });
-            await db.sessions.update(String(sessionId) as unknown as number, { sessionTitle: title });
+            // Only call the server for sessions that actually exist there
+            // (offline-created sessions have a string key like "offline-xxx" at runtime)
+            const isServerSession = Number.isInteger(sessionId as unknown) && (sessionId as unknown as number) > 0;
+            if (isOnline && isServerSession) {
+                await smartboardSessionService.rename(sessionId, title);
+            }
+            // Always update local IndexedDB (key may be a server int or an offline string)
+            await db.sessions.update(sessionId as unknown as string | number, { sessionTitle: title });
+            // Always update the displayed list
             setRecentSessions(prev => prev.map(s =>
                 s.sessionId === sessionId ? { ...s, sessionTitle: title } : s
             ));
-        } catch { /* swallow */ } finally {
+        } catch (err) {
+            console.error('Rename failed:', err);
+        } finally {
             setRenaming(false);
             setRenameTarget(null);
         }
