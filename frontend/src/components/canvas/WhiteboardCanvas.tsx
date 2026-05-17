@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Stage, Layer, Line, Text, Rect, Circle, Arrow } from 'react-konva';
+import { Stage, Layer, Line, Text, Rect, Ellipse, Arrow } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Annotation } from '@/types';
@@ -64,6 +64,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const [activePoints, setActivePoints] = useState<number[]>([]);
     const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
     const [previewShape, setPreviewShape] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const [previewEnd, setPreviewEnd] = useState<{ x: number; y: number } | null>(null);
     const isDrawing = useRef(false);
 
     // Pan state
@@ -189,6 +190,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             onRedoClear();
             setShapeStart({ x, y });
             setPreviewShape({ x, y, w: 0, h: 0 });
+            setPreviewEnd(null);
         }
     }, [toolState.tool, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear, isPanTool]);
 
@@ -210,6 +212,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         } else if (toolState.tool === 'eraser') {
             setActivePoints(prev => [...prev, x, y]);
         } else if (shapeStart && ['rect', 'circle', 'arrow'].includes(toolState.tool)) {
+            setPreviewEnd({ x, y });
             setPreviewShape({
                 x: Math.min(x, shapeStart.x),
                 y: Math.min(y, shapeStart.y),
@@ -256,6 +259,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             }
             setShapeStart(null);
             setPreviewShape(null);
+            setPreviewEnd(null);
         }
     }, [toolState, activePoints, shapeStart, onCommit, getWorldPos]);
 
@@ -335,7 +339,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 return <Rect key={ann.id} id={ann.id} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" hitStrokeWidth={HIT_STROKE} />;
             if (ann.shape === 'circle') {
                 const rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
-                return <Circle key={ann.id} id={ann.id} x={(x1 + x2) / 2} y={(y1 + y2) / 2} radiusX={rx} radiusY={ry} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" hitStrokeWidth={HIT_STROKE} />;
+                return <Ellipse key={ann.id} id={ann.id} x={(x1 + x2) / 2} y={(y1 + y2) / 2} radiusX={rx} radiusY={ry} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill="transparent" hitStrokeWidth={HIT_STROKE} />;
             }
             if (ann.shape === 'arrow')
                 return <Arrow key={ann.id} id={ann.id} points={[x1, y1, x2, y2]} stroke={ann.tool.color} strokeWidth={ann.tool.width} fill={ann.tool.color} pointerLength={10} pointerWidth={8} hitStrokeWidth={HIT_STROKE} />;
@@ -449,10 +453,10 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                         <Rect x={previewShape.x} y={previewShape.y} width={previewShape.w} height={previewShape.h} stroke={toolState.color} strokeWidth={toolState.strokeWidth} dash={[4, 3]} fill="transparent" />
                     )}
                     {previewShape && toolState.tool === 'circle' && (
-                        <Circle x={previewShape.x + previewShape.w / 2} y={previewShape.y + previewShape.h / 2} radiusX={previewShape.w / 2} radiusY={previewShape.h / 2} stroke={toolState.color} strokeWidth={toolState.strokeWidth} dash={[4, 3]} fill="transparent" />
+                        <Ellipse x={previewShape.x + previewShape.w / 2} y={previewShape.y + previewShape.h / 2} radiusX={previewShape.w / 2} radiusY={previewShape.h / 2} stroke={toolState.color} strokeWidth={toolState.strokeWidth} dash={[4, 3]} fill="transparent" />
                     )}
-                    {previewShape && shapeStart && toolState.tool === 'arrow' && (
-                        <Arrow points={[shapeStart.x, shapeStart.y, shapeStart.x + previewShape.w, shapeStart.y + previewShape.h]} stroke={toolState.color} strokeWidth={toolState.strokeWidth} fill={toolState.color} dash={[4, 3]} pointerLength={10} pointerWidth={8} />
+                    {previewEnd && shapeStart && toolState.tool === 'arrow' && (
+                        <Arrow points={[shapeStart.x, shapeStart.y, previewEnd.x, previewEnd.y]} stroke={toolState.color} strokeWidth={toolState.strokeWidth} fill={toolState.color} dash={[4, 3]} pointerLength={10} pointerWidth={8} />
                     )}
                 </Layer>
             </Stage>
