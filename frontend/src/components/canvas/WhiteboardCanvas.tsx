@@ -60,6 +60,12 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const [stageScale, setStageScale] = useState(1);
     const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
 
+    // Reset viewport when the user switches to a different page
+    useEffect(() => {
+        setStageScale(1);
+        setStagePos({ x: 0, y: 0 });
+    }, [page.pageNo]);
+
     // In-progress stroke
     const [activePoints, setActivePoints] = useState<number[]>([]);
     const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
