@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { db, pageKey, type LocalPage } from '@/db/localDb';
 import { smartboardSessionService } from '@/services/smartboardSessionService';
+import { kbotContentService } from '@/services/kbotContentService';
 import { enqueue, processQueue } from '@/services/syncService';
 import type { Annotation, PagePayload, SourceType } from '@/types';
 
@@ -59,12 +60,18 @@ export function cardPage(
 
 // ─── serialise / deserialise ──────────────────────────────────────────────────
 
+// KBot source types have their HTML in kbotContentService cache — don't embed it in PageJson.
+const REFETCHABLE_SOURCES: SourceType[] = ['KBotContentCard', 'KBotQuestion', 'KBotSolvedCard'];
+
 function serialise(p: LivePage): string {
+    const stripHtml = p.background.kind === 'html'
+        && p.sourceType != null
+        && REFETCHABLE_SOURCES.includes(p.sourceType);
     const payload: Omit<PagePayload, 'pageId'> = {
         sourceType: (p.sourceType ?? 'BlankBoard') as SourceType,
         sourceId: p.sourceId ?? undefined,
         sourceVersionId: p.sourceVersionId ?? undefined,
-        background: { kind: p.background.kind, url: p.background.html },
+        background: { kind: p.background.kind, url: stripHtml ? undefined : p.background.html },
         viewport: p.viewport,
         annotations: p.annotations,
         createdAt: new Date().toISOString(),
@@ -98,6 +105,8 @@ export function useSmartboardSession(sessionId: number | string) {
     const [currentPageIndex, setCurrentPageIndex] = useState(0);
     const [status, setStatus] = useState<'loading' | 'ready' | 'ended' | 'error'>('loading');
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Track pages whose background html is already being fetched (avoid duplicate fetches)
+    const hydratingRef = useRef(new Set<string>());
 
     // ── Load: IndexedDB first, fall back to server ────────────────────────────
     useEffect(() => {
@@ -177,6 +186,43 @@ export function useSmartboardSession(sessionId: number | string) {
         load();
         return () => { cancelled = true; };
     }, [sessionId]);
+
+    // ── Re-hydrate KBot card backgrounds stripped from PageJson ──────────────
+    // When a page is loaded from DB/server, background.html is absent for KBot
+    // source types (we no longer embed the HTML in PageJson). Fetch it from the
+    // card cache (IndexedDB-first, then KBot API) and patch it into state.
+    useEffect(() => {
+        const missing = pages.filter(p =>
+            p.background.kind === 'html'
+            && !p.background.html
+            && p.sourceId != null
+        );
+        if (!missing.length) return;
+
+        const toFetch = missing.filter(p => {
+            const key = `${p.pageNo}:${p.sourceId}:${p.sourceVersionId}`;
+            if (hydratingRef.current.has(key)) return false;
+            hydratingRef.current.add(key);
+            return true;
+        });
+        if (!toFetch.length) return;
+
+        void Promise.all(toFetch.map(async p => {
+            try {
+                const card = await kbotContentService.render(
+                    p.sourceId!,
+                    p.sourceVersionId ?? undefined,
+                );
+                setPages(prev => prev.map(q =>
+                    q.pageNo === p.pageNo
+                        ? { ...q, background: { ...q.background, html: card.html } }
+                        : q,
+                ));
+            } catch {
+                // leave html undefined — canvas renders blank background gracefully
+            }
+        }));
+    }, [pages]);
 
     // ── Write: IndexedDB immediately, then enqueue server sync ────────────────
     const persistPage = useCallback(async (page: LivePage) => {
