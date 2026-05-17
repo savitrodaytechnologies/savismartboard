@@ -1,7 +1,7 @@
 # Savischools Smartboard — Detailed Design Document
 
-> Version: 1.1  
-> Date: 16 May 2026  
+> Version: 1.3  
+> Date: 17 May 2026  
 > Status: In development — see §16 for current implementation status  
 > Owners: Parivesh (Smartboard Core) · Manohar (Savischools Integration) · Mukesh (KBot Integration)
 
@@ -80,6 +80,18 @@ The Smartboard App is a **classroom delivery layer**. It does not own users, syl
 - Health endpoints `/healthz` (liveness) and `/readyz` (dependencies).
 - Feature flags per school via `SmartboardSchoolSetting`.
 
+### 3.4 Blob storage (S3)
+- **Bucket:** `savismartboard-sessions` (ap-south-1, private, all public access blocked).
+- **Access:** EC2 instance profile (`saviknowledgebot-ec2-role`) has inline policy `savismartboard-s3-sessions` granting `PutObject`, `GetObject`, `DeleteObject` on `sessions/*` and `ListBucket`. No static credentials needed.
+- **SDK:** `AWSSDK.S3` v3.7 registered as `IAmazonS3` singleton in DI; uses EC2 IMDSv2 automatically.
+- **Object layout:** `sessions/{sessionId}/page-{pageNo}.json` (gzip-compressed, `Content-Encoding: gzip`).
+- **`IS3PageArchiveService`:**
+  - `ArchivePageAsync(sessionId, pageNo, json)` — gzip → `PutObject` → returns S3 key.
+  - `RestorePageAsync(s3Key)` — `GetObject` → gunzip → returns JSON string.
+- **Write path:** `EndAsync` in `SmartboardSessionService` — mark Ended first (critical), then archive each page best-effort. Failure is logged as Warning; `PageJson` stays in DB (zero data loss on S3 failure).
+- **Read path:** `GetAsync` detects pages where `PageJson IS NULL` and `PageJsonUrl IS NOT NULL`, fetches all in parallel from S3, patches into the returned DTO. Frontend is unaware — always receives populated `pageJson`.
+- **Future:** Lifecycle policy on S3 to move objects to Glacier after 1 year; cleanup on session delete (not yet implemented).
+
 ---
 
 ## 4. Domain Model
@@ -106,15 +118,19 @@ The Smartboard App is a **classroom delivery layer**. It does not own users, syl
   "sourceVersionId": 3,                 // pinned at insert time
   "background": {
     "kind": "html",                     // html | image | pdf | blank
-    "url": "/api/smartboard/kbot/content-cards/501/render?versionId=3"
+    // NOTE: 'url' is intentionally absent for KBotContentCard/Question/SolvedCard sources.
+    // The full card HTML is never stored in PageJson; it is re-fetched on demand from
+    // kbotContentService.render() (IndexedDB cache first, then KBot API).
+    // For BlankBoard and uploaded content, 'url' may be present.
+    "url": "optional — only for non-KBot backgrounds"
   },
-  "viewport": { "width": 1920, "height": 1080 }, // logical canvas size
+  "viewport": { "width": 1280, "height": 720 }, // logical canvas size; matches KBot card viewport
   "annotations": [
     {
       "id": "ann-1",
-      "type": "pen",                    // pen | highlighter | eraser-stroke | text | shape | image
+      "type": "pen",                    // pen | highlighter | eraser | text | shape
       "tool": { "color": "#000000", "width": 4, "opacity": 1 },
-      "points": [0.012, 0.034, 0.040, 0.071]   // normalized 0..1 coords
+      "points": [x1, y1, x2, y2, ...]  // absolute pixel coords in viewport space
     }
   ],
   "createdAt": "2026-05-14T10:12:33Z",
@@ -122,16 +138,35 @@ The Smartboard App is a **classroom delivery layer**. It does not own users, syl
 }
 ```
 
-**Coordinate system:** all annotation coordinates are **normalized (0..1)** against `viewport`. This makes replay device-independent and PDF export deterministic.
+**KBot background HTML stripping (implemented 17 May 2026):**  
+For `KBotContentCard`, `KBotQuestion`, and `KBotSolvedCard` source types, the rendered HTML is **not** embedded in `background.url` inside `PageJson`. The HTML is already stored in KBot's own database and served via `/api/smartboard/kbot/content-cards/{id}/render`. Embedding it was causing 50–200 KB of redundant data per page. The frontend's `useSmartboardSession` hook now:
+1. Serialises `PageJson` **without** `background.url` for KBot sources.
+2. On load, a re-hydration `useEffect` fetches the card HTML via `kbotContentService.render()` (IndexedDB `cardCache` first → KBot API fallback) and patches it into React state.
+3. `WhiteboardCanvas` renders a blank background while the fetch is in-flight — graceful, no flicker for cached cards.
+
+**S3 archival (implemented 17 May 2026):**  
+When a session is ended, `PageJson` (annotations) is archived to S3. See §4.3.
 
 ### 4.3 Session lifecycle
 
-`Draft → InProgress → Paused → Completed → Archived`
+`InProgress → Ended`
 
-- `Draft` allowed for pre-class prep.
-- Auto-save every 30 s while `InProgress`.
-- `Completed` is required before share/export.
-- `Archived` after retention period (configurable per school).
+- Sessions are created immediately when the teacher clicks "Start Session".
+- Auto-save: debounced 1.5 s after each stroke; `UpsertPageAsync` MERGE on `(SessionId, PageNo)`.
+- `Ended` status is set by `POST /sessions/{id}/end`; after marking Ended, the backend archives each page's `PageJson` to S3 (see §3.4) and nulls out the DB column.
+- Ended sessions are viewable as read-only canvas (annotations visible, no drawing allowed).
+- Sessions can be renamed at any time via `PATCH /sessions/{id}/rename`.
+- Sessions can be deleted (cascade-deletes pages from DB; S3 objects are not yet auto-cleaned).
+
+### 4.4 Storage tiers (as of 17 May 2026)
+
+| Data | Storage | Lifecycle |
+|---|---|---|
+| Session metadata (status, title, dates) | SQL `SmartboardSession` | Permanent |
+| Page annotations — InProgress | SQL `SmartboardSessionPage.PageJson` | Hot; written on every auto-save |
+| Page annotations — Ended | S3 `savismartboard-sessions` (gzip) | Cold; `PageJson` set to NULL in DB |
+| KBot card HTML | Not stored — re-fetched from KBot | TTL via IndexedDB cardCache (7 days) |
+| Session exports / PDFs | SQL `SmartboardSessionExport.FileUrl` + blob store | On-demand |
 
 ---
 
@@ -221,10 +256,12 @@ POST /api/smartboard/ai/homework
 
 Even though v1 is online-only, the following choices keep offline cheap to add later:
 
-- All session writes are **idempotent and diff-based** (`pageId` + `revision`).
-- Page payloads are self-contained JSON.
-- Background image references include both URL and (later) cached blob ID.
-- A client-side sync queue interface is stubbed but disabled in v1.
+- All session writes are **idempotent and diff-based** (`pageNo` + `revision` via MERGE).
+- Page payloads are self-contained JSON (KBot HTML re-fetched separately, not embedded).
+- IndexedDB `cardCache` already provides 7-day offline read for KBot card HTML.
+- IndexedDB `pages` table + sync queue (`syncService`) are in place; queue is fire-and-forget online.
+- `sessionStorage` exclusion list tracks locally-deleted sessions to prevent server refresh from resurrecting them.
+- A `hydratingRef` Set guards against duplicate concurrent card-HTML fetches on re-hydration.
 
 ---
 
@@ -233,10 +270,10 @@ Even though v1 is online-only, the following choices keep offline cheap to add l
 | # | Milestone | Primary owner | Supporting | Status |
 |---|---|---|---|---|
 | M1 | Savischools login + teacher context | **Manohar** | Parivesh (shell) | 🔴 Not started — `[AllowAnonymous]` everywhere; no SSO handoff |
-| M2 | KBot content card viewer | **Mukesh** | Parivesh (canvas host) | 🟡 Backend complete; card-as-canvas-background not verified end-to-end |
-| M3 | Whiteboard + annotation layer | **Parivesh** | — | ✅ Complete — pen/highlighter/shapes/text/undo/redo/pages |
+| M2 | KBot content card viewer | **Mukesh** | Parivesh (canvas host) | 🟡 Backend complete; card-as-canvas-background re-hydration implemented |
+| M3 | Whiteboard + annotation layer | **Parivesh** | — | ✅ Complete — pen/highlighter/shapes/text/eraser/smart-shape/undo/redo/pages |
 | M4 | Question bank + solved card classroom mode | **Mukesh** | Parivesh (board insert) | 🟡 Backend complete; hide/reveal + insert-into-board UI not built |
-| M5 | Session save / export / share | **Parivesh** | Manohar (portal share) | 🟡 Session create/load/auto-save working; export + share are stubs |
+| M5 | Session save / export / share | **Parivesh** | Manohar (portal share) | 🟡 Session CRUD + auto-save + rename + delete + view-ended working; export + share are stubs |
 | M6 | Limited AI assistant + production hardening | **Parivesh** | Manohar + Mukesh (grounding data) | 🔴 Not started — `SmartboardAiService` all stubs, no `AiAssistantPanel` |
 
 Each milestone has its own acceptance criteria — see §11.
@@ -438,15 +475,42 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 
 ---
 
-## 16. Implementation Status (updated 16 May 2026)
+## 16. Implementation Status (updated 17 May 2026)
+
+### 16.0 Recent changes (17 May 2026 session)
+
+#### Canvas tools
+| Change | Detail |
+|---|---|
+| **Smart Shape (✦)** | Freehand strokes auto-converted to geometry on mouse-up. Douglas-Peucker simplification → corner count → triangle / rectangle / circle / line. Triangle: polygon + 3 side labels (normalised, longest = 10.0) + 3 blue angle labels. Rectangle: rect + width/height labels. Falls back to pen stroke if unrecognised. |
+| **Circle tool fixed** | Konva `<Circle>` replaced with `<Ellipse>` for both live preview and committed shapes (Circle only has `radius`, Ellipse has `radiusX`/`radiusY`). |
+| **Arrow preview direction** | Added `previewEnd: {x,y} \| null` state tracking actual cursor position. Preview and commit now share the same endpoint — previously the preview always pointed right regardless of drag direction. |
+
+#### Session management UI
+| Change | Detail |
+|---|---|
+| **Delete always removes row** | `setRecentSessions` filter moved to `finally` block — previously swallowed in `catch` so the row stayed visible on API error. |
+| **Deleted sessions don't reappear** | `sessionStorage` exclusion list (`sb_deleted_sessions`) applied to both server-fetch and local-DB results. Component remounts (navigate away + back) no longer resurrect deleted sessions. |
+| **Ended sessions open as read-only canvas** | `readOnly = status === 'ended'`; `effectiveTool` forced to `select`; `CanvasToolbar` shows amber "View Only" badge and hides all drawing controls. |
+| **Rename session** | Inline edit in dashboard row: click ✏️ → title becomes `<input>`; Enter/blur → save; Escape → cancel. Backend: `PATCH /api/smartboard/sessions/{id}/rename` with `{ title }`. Saved to server + IndexedDB + local list state. |
+
+#### Storage optimisation
+| Change | Detail |
+|---|---|
+| **Strip KBot HTML from PageJson** | `serialise()` omits `background.url` for `KBotContentCard`, `KBotQuestion`, `KBotSolvedCard`. Saves 50–200 KB per page. Re-hydration effect in `useSmartboardSession` fetches HTML on load (IndexedDB cache first). DB migration `002` strips existing rows. |
+| **S3 archival on session end** | Bucket `savismartboard-sessions` (ap-south-1, private). On `EndAsync`: mark Ended → gzip each page's `PageJson` → `PutObject` → `UPDATE SET PageJsonUrl=key, PageJson=NULL`. `GetAsync` re-hydrates from S3 for ended sessions. EC2 IAM role granted access. DB migration `003` adds `PageJsonUrl NVARCHAR(1000) NULL` and makes `PageJson` nullable. |
+
+---
 
 ### 16.1 Infrastructure
 | Item | Status | Notes |
 |---|---|---|
 | EC2 (ap-south-1, `13.205.70.12`) | ✅ Running | Amazon Linux 2023, systemd service `smartboard-api` |
-| RDS SQL Server (`savismartboard` DB) | ✅ Running | Schema migration `001` applied |
-| GitHub Actions CI/CD | ✅ Auto-deploy on push to `main` | Latest deploy: commit `52d3e0f` |
+| RDS SQL Server (`savismartboard` DB) | ✅ Running | Migrations 001, 002, 003 applied |
+| S3 bucket `savismartboard-sessions` | ✅ Created | ap-south-1, private; EC2 IAM role has PutObject/GetObject/DeleteObject |
+| GitHub Actions CI/CD | ✅ Auto-deploy on push to `main` | Latest deploy: commit `f3aa90a` |
 | Health endpoint `/healthz` | ✅ Returns `Healthy` | |
+| `sqlcmd` on EC2 | ✅ Installed | mssql-tools18 via Microsoft RHEL9 repo; used for DB migrations |
 
 ### 16.2 Backend services
 | Service | Status | Notes |
@@ -455,8 +519,9 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 | `KBotContentService` | ✅ Implemented | topic cards (L0–L6), versions, render |
 | `KBotQuestionService` | ✅ Implemented | list / detail / explanation / solved-card / submit |
 | `SmartboardContextService` | 🟡 KBot proxy | Returns KBot data as placeholder; must be replaced with real Savischools data when M1 is done |
-| `SmartboardSessionService` | 🟡 Partial | Create / get / recent / save-page / end working; export + share return placeholder URLs |
+| `SmartboardSessionService` | 🟡 Partial | Create / get / recent / save-page / end / rename / delete working; S3 archival on end implemented; export + share return placeholder URLs |
 | `SmartboardAiService` | 🔴 Stub | All 6 methods return `[kind] {instruction}` |
+| `S3PageArchiveService` | ✅ Implemented | `ArchivePageAsync` (gzip + PutObject), `RestorePageAsync` (GetObject + gunzip); registered as singleton; uses EC2 IAM role automatically |
 
 ### 16.3 Backend controllers — auth
 | Controller | Auth | Notes |
@@ -473,43 +538,53 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 ### 16.4 Frontend pages
 | Page | Status | Notes |
 |---|---|---|
-| `TeacherDashboardPage` | ✅ Working | Class → Subject → Topic picker, recent sessions, blank board start |
+| `TeacherDashboardPage` | ✅ Working | Class → Subject → Topic picker, recent sessions, blank board start, inline rename (✏️), delete with exclusion list, view ended sessions |
 | `TopicTeachingPage` | 🟡 Partial | Card list + question list + preview render; no question hide/reveal or insert-into-board from question panel |
-| `SmartboardSessionPage` | 🟡 Partial | Canvas + toolbar + undo/redo + page strip working; card HTML background not rendered; no AI panel |
+| `SmartboardSessionPage` | 🟡 Partial | Canvas + toolbar + undo/redo + page strip + KBot card background re-hydration + read-only view for ended sessions; no AI panel |
 
 ### 16.5 Frontend components
 | Component | Status | Notes |
 |---|---|---|
-| `WhiteboardCanvas` | ✅ Complete | Pen, highlighter, rect/circle/arrow, text, undo, redo |
-| `CanvasToolbar` | ✅ Complete | Tool picker, colour, stroke width, undo/redo/clear, end session |
+| `WhiteboardCanvas` | ✅ Complete | Pen, highlighter, rect, circle (Ellipse), arrow, text, eraser (destination-out), smart-shape auto-detect, undo, redo; KBot card HTML background rendered via `dangerouslySetInnerHTML` |
+| `CanvasToolbar` | ✅ Complete | Tool picker, colour, stroke width, undo/redo/clear, end session; `readOnly` prop shows amber "View Only" badge and hides drawing controls; ✦ smart-shape button |
 | `PageStrip` | ✅ Complete | Thumbnail strip, add/delete pages |
 | `OfflineIndicator` | ✅ Complete | Pending sync badge |
+| `shapeDetector.ts` | ✅ Complete | `tryConvertToShape()` — Douglas-Peucker simplification, corner detection, triangle/rect/circle/line classification, measurement labels |
 | `AiAssistantPanel` | 🔴 Not built | M6 |
-| `ContentCardViewer` (in session) | 🔴 Not built | Card HTML as canvas background not wired |
 | `QuestionViewer` / `SolvedCardViewer` | 🔴 Not built | M4 classroom mode UI |
 
 ### 16.6 Known issues to fix before production
 1. Replace all `[AllowAnonymous]` with `[Authorize]` after M1 SSO is done.
 2. `SmartboardContextService` — swap KBot proxy for real Savischools class/subject/topic data.
-3. KBot card HTML background rendering in `SmartboardSessionPage` — wiring `cardPage()` helper to canvas background layer.
-4. M4 classroom mode — question hide/reveal UI + insert solved card into board.
-5. M5 export — PDF generation pipeline (server-side preferred; `pdf-lib` client fallback).
-6. M5 share — signed URL delivery to Savischools student/parent portal.
-7. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
+3. M4 classroom mode — question hide/reveal UI + insert solved card into board.
+4. M5 export — PDF generation pipeline (server-side preferred; `pdf-lib` client fallback).
+5. M5 share — signed URL delivery to Savischools student/parent portal.
+6. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
+7. S3 cleanup on session delete — `DeleteSessionAsync` currently only removes SQL rows; S3 objects for deleted sessions are not yet purged.
 
 ---
 
 ## Appendix A — Smartboard Database Schemas (reference)
 
-> Same shape as the original spec, restated here for completeness. All tables include `SchoolId` for tenant isolation; all FK enforcement and indexing decisions left to migration design.
+> All tables include `SchoolId` for tenant isolation.
 
-- `SmartboardSession (SessionId, SchoolId, TeacherId, ClassId, SectionId, SubjectId, TopicId, SessionTitle, SessionDate, StartedAt, EndedAt, Status, CreatedOn)`
-- `SmartboardSessionPage (SessionPageId, SessionId, PageNo, PageType, SourceType, SourceId, SourceVersionId, PageJson, SnapshotUrl, Revision, CreatedOn, ModifiedOn)`
+**Current live schema (migrations 001–003 applied):**
+
+- `SmartboardSession (SessionId PK, SchoolId, TeacherId, ClassId, SectionId, SubjectId, TopicId, SessionTitle, SessionDate, StartedAt, EndedAt, Status, CreatedOn)`
+- `SmartboardSessionPage (SessionPageId PK, SessionId FK, PageNo, PageType, SourceType, SourceId, SourceVersionId, PageJson NVARCHAR(MAX) NULL, PageJsonUrl NVARCHAR(1000) NULL, SnapshotUrl, Revision, CreatedOn, ModifiedOn)`
+  - `PageJson` is NULL for ended-session pages (blob moved to S3, key in `PageJsonUrl`)
+  - `PageJsonUrl` format: `sessions/{sessionId}/page-{pageNo}.json` (gzip-compressed object in `savismartboard-sessions` S3 bucket)
 - `SmartboardSessionExport (ExportId, SessionId, ExportType, FileUrl, CreatedOn, CreatedByUserId)`
 - `SmartboardAiRequestLog (AiRequestLogId, SchoolId, TeacherId, TopicId, SessionId, RequestType, SourceType, SourceId, PromptText, ResponseText, Provider, ModelName, TokenCount, CostMicroUsd, CreatedOn)`
 - `SmartboardSchoolSetting (SettingId, SchoolId, IsSmartboardEnabled, IsAiEnabled, AllowExport, AllowStudentSharing, IsAiSharingAllowed, AiMonthlyBudgetUsd, CreatedOn, ModifiedOn)`
 
-> Added vs. original: `Revision` on pages (for diff-based saves), `CostMicroUsd` on AI log, `IsAiSharingAllowed` and `AiMonthlyBudgetUsd` on settings.
+**DB migrations:**
+
+| File | Applied | Description |
+|---|---|---|
+| `001_create_smartboard_schema.sql` | ✅ | Creates all 5 tables, PKs, indexes |
+| `002_strip_kbot_background_html.sql` | ✅ | `JSON_MODIFY` removes `background.url` from existing KBot-sourced `PageJson` rows (idempotent) |
+| `003_add_pagejsonurl.sql` | ✅ | Adds `PageJsonUrl NVARCHAR(1000) NULL`; makes `PageJson` nullable |
 
 ---
 
