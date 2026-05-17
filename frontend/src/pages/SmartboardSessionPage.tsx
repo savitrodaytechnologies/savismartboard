@@ -31,6 +31,36 @@ export default function SmartboardSessionPage() {
     const [ending, setEnding] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+    // Right panel — collapsible + resizable
+    const DEFAULT_PANEL_WIDTH = 320;
+    const MIN_PANEL_WIDTH = 200;
+    const MAX_PANEL_WIDTH = 720;
+    const [panelOpen, setPanelOpen] = useState(true);
+    const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
+    const panelWidthRef = useRef(DEFAULT_PANEL_WIDTH);
+
+    const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = panelWidthRef.current;
+        const onMove = (ev: MouseEvent) => {
+            const newW = Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, startWidth + (startX - ev.clientX)));
+            panelWidthRef.current = newW;
+            setPanelWidth(newW);
+        };
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    }, []);
+
+    const resetPanelWidth = useCallback(() => {
+        panelWidthRef.current = DEFAULT_PANEL_WIDTH;
+        setPanelWidth(DEFAULT_PANEL_WIDTH);
+    }, []);
+
     // Per-page viewport (pan + zoom) — stored in a ref so panning never causes parent re-renders
     const viewportStore = useRef<Record<number, { scale: number; pos: { x: number; y: number } }>>({});
     const saveViewport = useCallback((v: { scale: number; pos: { x: number; y: number } }) => {
@@ -113,8 +143,8 @@ export default function SmartboardSessionPage() {
     return (
         <div className="flex h-screen bg-slate-950 overflow-hidden">
 
-            {/* ── Left: canvas area (70%) ──────────────────────────────────── */}
-            <div className="flex flex-col" style={{ width: '70%', minWidth: 0 }}>
+            {/* ── Left: canvas area (fills remaining space) ─────────────────── */}
+            <div className="flex flex-col flex-1 min-w-0">
             {currentPage && (
                 <WhiteboardCanvas
                     page={currentPage}
@@ -153,10 +183,46 @@ export default function SmartboardSessionPage() {
             />
             </div>
 
-            {/* ── Right: AI Assist Panel (30%) ─────────────────────────────── */}
-            <div style={{ width: '30%', minWidth: '220px' }}>
-                <AiAssistPanel query={aiQuery} sessionId={Number(id) || undefined} />
-            </div>
+            {/* ── Resize handle (drag to resize, double-click to reset) ────── */}
+            {panelOpen && (
+                <div
+                    onMouseDown={handleResizeMouseDown}
+                    onDoubleClick={resetPanelWidth}
+                    title="Drag to resize · Double-click to reset width"
+                    className="relative flex-shrink-0 flex items-center justify-center cursor-col-resize bg-slate-800 hover:bg-blue-600 transition-colors group"
+                    style={{ width: 8 }}
+                >
+                    {/* Collapse chevron button — centred on the handle */}
+                    <button
+                        onMouseDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); setPanelOpen(false); }}
+                        title="Collapse AI panel"
+                        className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-5 h-9 rounded bg-slate-700 group-hover:bg-blue-700 text-slate-300 text-xs shadow"
+                    >
+                        ▶
+                    </button>
+                    {/* Reset-width dot — double-click hint */}
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-slate-600 group-hover:bg-blue-400" />
+                </div>
+            )}
+
+            {/* ── Right: AI Assist Panel ───────────────────────────────────── */}
+            {panelOpen ? (
+                <div className="flex-shrink-0 overflow-hidden" style={{ width: panelWidth }}>
+                    <AiAssistPanel query={aiQuery} sessionId={Number(id) || undefined} />
+                </div>
+            ) : (
+                /* Collapsed: thin expand tab on the right edge */
+                <button
+                    onClick={() => setPanelOpen(true)}
+                    title="Expand AI panel"
+                    className="flex-shrink-0 flex flex-col items-center justify-center gap-2 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors border-l border-slate-700"
+                    style={{ width: 28 }}
+                >
+                    <span className="text-sm">◀</span>
+                    <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 10, letterSpacing: 1 }}>AI PANEL</span>
+                </button>
+            )}
 
             {/* ── Clear page confirmation modal ─────────────────── */}
             {showClearConfirm && (

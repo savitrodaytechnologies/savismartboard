@@ -84,7 +84,11 @@ export function buildShapeAnnotation(
 
 export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onClear, onEndSession, onBack, canUndo, canRedo, sessionTitle, readOnly = false }: Props) {
     return (
-        <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 text-white select-none flex-shrink-0">
+        <div
+            className="bg-slate-900 text-white select-none flex-shrink-0 overflow-x-auto"
+            style={{ scrollbarWidth: 'thin', scrollbarColor: '#475569 #0f172a' }}
+        >
+        <div className="flex items-center gap-2 px-3 py-2 w-max min-w-full">
             {/* Back to dashboard */}
             <button
                 onClick={onBack}
@@ -174,6 +178,7 @@ export default function CanvasToolbar({ toolState, onChange, onUndo, onRedo, onC
             </button>
                 </>
             )}
+        </div>
         </div>
     );
 }
