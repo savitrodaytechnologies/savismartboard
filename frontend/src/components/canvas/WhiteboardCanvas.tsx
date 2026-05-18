@@ -180,6 +180,10 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         const touches = e.evt.touches;
         if (touches.length === 2) {
             e.evt.preventDefault();
+            // Cancel any single-finger drawing that started before the second finger landed
+            isDrawing.current = false;
+            isPanning.current = false;
+            setActivePoints([]);
             const dx = touches[1].clientX - touches[0].clientX;
             const dy = touches[1].clientY - touches[0].clientY;
             lastPinchRef.current = {
@@ -255,7 +259,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     }, []);
 
     // ── Mouse events ─────────────────────────────────────────────────────────
-    const handleMouseDown = useCallback((e: KonvaEventObject<MouseEvent>) => {
+    const handlePointerDown = useCallback((e: KonvaEventObject<PointerEvent>) => {
+        if (!e.evt.isPrimary) return; // ignore secondary touch points (pinch)
         const stage = e.target.getStage()!;
         // Middle mouse, space+left, or pan tool → begin panning
         if (e.evt.button === 1 || spaceRef.current || isPanTool) {
@@ -297,7 +302,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         }
     }, [toolState.tool, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear, isPanTool]);
 
-    const handleMouseMove = useCallback((e: KonvaEventObject<MouseEvent>) => {
+    const handlePointerMove = useCallback((e: KonvaEventObject<PointerEvent>) => {
+        if (!e.evt.isPrimary) return; // ignore secondary touch points
         if (isPanning.current && lastPanClient.current) {
             const dx = e.evt.clientX - lastPanClient.current.x;
             const dy = e.evt.clientY - lastPanClient.current.y;
@@ -331,7 +337,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         }
     }, [toolState.tool, getWorldPos, shapeStart]);
 
-    const handleMouseUp = useCallback((e: KonvaEventObject<MouseEvent>) => {
+    const handlePointerUp = useCallback((e: KonvaEventObject<PointerEvent>) => {
+        if (!e.evt.isPrimary) return; // ignore secondary touch points
         if (isPanning.current) {
             isPanning.current = false;
             lastPanClient.current = null;
@@ -578,18 +585,18 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                onMouseDown={handleMouseDown}
-                onMouseMove={e => {
+                onPointerDown={handlePointerDown}
+                onPointerMove={e => {
                     // track eraser circle position
-                    if (toolState.tool === 'eraser') {
+                    if (e.evt.isPrimary && toolState.tool === 'eraser') {
                         const stage = e.target.getStage()!;
                         const ptr = stage.getPointerPosition();
                         if (ptr) setEraserPos({ x: ptr.x, y: ptr.y });
                     }
-                    handleMouseMove(e);
+                    handlePointerMove(e);
                 }}
-                onMouseLeave={() => setEraserPos(null)}
-                onMouseUp={handleMouseUp}
+                onPointerLeave={() => setEraserPos(null)}
+                onPointerUp={handlePointerUp}
                 onDblClick={() => {}}
             >
                 <Layer>
