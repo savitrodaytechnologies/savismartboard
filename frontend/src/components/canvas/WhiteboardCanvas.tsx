@@ -569,7 +569,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 ref={stageRef}
                 width={containerW}
                 height={containerH}
-                style={{ cursor, position: 'absolute', inset: 0 }}
+                style={{ cursor, position: 'absolute', inset: 0, touchAction: 'none' }}
                 x={stagePos.x}
                 y={stagePos.y}
                 scaleX={stageScale}
