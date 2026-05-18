@@ -60,10 +60,14 @@ export default function AiAssistPanel({ query, sessionId }: Props) {
 
         setTabs(prev => ({ ...prev, [activeTab]: { status: 'loading', content: '' } }));
 
-        // Strip data URL prefix before sending
-        const base64 = query.dataUrl.replace(/^data:[^;]+;base64,/, '');
+        // Extract media type and strip data URL prefix before sending.
+        // It's critical to send the actual media type — Konva can return PNG even when
+        // JPEG is requested, and Claude rejects a JPEG-labelled payload that is actually PNG.
+        const mediaTypeMatch = query.dataUrl.match(/^data:([^;]+);base64,/);
+        const mediaType = mediaTypeMatch ? mediaTypeMatch[1] : 'image/jpeg';
+        const base64 = query.dataUrl.slice(query.dataUrl.indexOf(',') + 1);
 
-        aiService.askSelection(tabDef.instruction, base64, sessionId)
+        aiService.askSelection(tabDef.instruction, base64, sessionId, mediaType)
             .then((res: { result: string }) => {
                 setTabs(prev => ({ ...prev, [activeTab]: { status: 'done', content: res.result } }));
             })

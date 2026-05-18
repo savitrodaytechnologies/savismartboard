@@ -8,6 +8,6 @@ export const aiService = {
     quickQuiz: (body: unknown) => api.post('/smartboard/ai/quick-quiz', body).then(r => r.data),
     summary: (body: unknown) => api.post('/smartboard/ai/summary', body).then(r => r.data),
     homework: (body: unknown) => api.post('/smartboard/ai/homework', body).then(r => r.data),
-    askSelection: (instruction: string, imageBase64: string, sessionId?: number) =>
-        api.post('/smartboard/ai/ask-selection', { instruction, imageBase64, sessionId }).then(r => r.data),
+    askSelection: (instruction: string, imageBase64: string, sessionId?: number, imageMediaType?: string) =>
+        api.post('/smartboard/ai/ask-selection', { instruction, imageBase64, sessionId, imageMediaType }).then(r => r.data),
 };

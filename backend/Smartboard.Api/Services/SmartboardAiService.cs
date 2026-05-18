@@ -54,7 +54,7 @@ public sealed class SmartboardAiService : ISmartboardAiService
 
         var message = string.IsNullOrEmpty(req.ImageBase64)
             ? new AiMessage(task)
-            : new AiMessage(task, req.ImageBase64);
+            : new AiMessage(task, req.ImageBase64, req.ImageMediaType ?? "image/jpeg");
 
         var result = await _client.ChatAsync(SystemPrompt, message, ct);
         return new AiPromptResponse(result, 0, 0m);

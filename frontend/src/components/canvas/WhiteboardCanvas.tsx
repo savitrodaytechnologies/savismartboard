@@ -378,8 +378,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             width: Math.max(1, sw),
             height: Math.max(1, sh),
             pixelRatio: 1,
-            mimeType: 'image/jpeg',
-            quality: 0.85,
+            mimeType: 'image/png',
         });
         onAiCapture(dataUrl);
         setLassoBox(null);
