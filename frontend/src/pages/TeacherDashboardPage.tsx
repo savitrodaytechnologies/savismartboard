@@ -65,6 +65,33 @@ export default function TeacherDashboardPage() {
             (async () => {
                 try {
                     const serverSessions = await smartboardSessionService.recent();
+                    // Cache server sessions into local IndexedDB so they survive backend downtime.
+                    // Use put() so we don't overwrite richer local data (pages etc.) — only upsert
+                    // fields the server knows about.
+                    await Promise.all(serverSessions.map((s: RecentSession) =>
+                        db.sessions.where('sessionId').equals(s.sessionId).count().then(n => {
+                            if (n === 0) {
+                                // Session exists on server but not locally — seed it
+                                return db.sessions.put({
+                                    sessionId: s.sessionId,
+                                    serverSessionId: s.sessionId,
+                                    status: s.status as 'InProgress' | 'Ended',
+                                    startedAt: s.startedAt,
+                                    sessionTitle: s.sessionTitle ?? `Session #${s.sessionId}`,
+                                    classId: 0,
+                                    subjectId: 0,
+                                    syncStatus: 'synced',
+                                    updatedAt: s.startedAt,
+                                });
+                            } else {
+                                // Already local — only sync title + status from server
+                                return db.sessions.update(s.sessionId, {
+                                    status: s.status as 'InProgress' | 'Ended',
+                                    ...(s.sessionTitle ? { sessionTitle: s.sessionTitle } : {}),
+                                });
+                            }
+                        })
+                    ));
                     // Merge: server sessions + any local-only sessions never synced to server
                     const localSessions = await db.sessions.orderBy('updatedAt').reverse().limit(50).toArray();
                     const serverIds = new Set(serverSessions.map((s: RecentSession) => s.sessionId));
@@ -124,7 +151,7 @@ export default function TeacherDashboardPage() {
                 await smartboardSessionService.rename(sessionId, title);
             }
             // Always update local IndexedDB (key may be a server int or an offline string)
-            await db.sessions.update(sessionId as unknown as string | number, { sessionTitle: title });
+            await db.sessions.update(sessionId as unknown as string | number, { sessionTitle: title, updatedAt: new Date().toISOString() });
             // Always update the displayed list
             setRecentSessions(prev => prev.map(s =>
                 s.sessionId === sessionId ? { ...s, sessionTitle: title } : s
