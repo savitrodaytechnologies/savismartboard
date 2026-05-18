@@ -148,9 +148,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         }
     }, [toolState.tool]);
 
-    // Window-level mouse handlers for scrollbar thumb drag
+    // Window-level pointer handlers for scrollbar thumb drag (pointermove/up covers mouse + touch + stylus)
     useEffect(() => {
-        const onMove = (e: MouseEvent) => {
+        const onMove = (e: PointerEvent) => {
             const d = scrollDragRef.current;
             if (!d) return;
             const delta = (d.axis === 'h' ? e.clientX : e.clientY) - d.startClient;
@@ -165,12 +165,64 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             );
         };
         const onUp = () => { scrollDragRef.current = null; };
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
         return () => {
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
         };
+    }, []);
+
+    // Pinch-to-zoom + two-finger pan (tablet / touch support)
+    const lastPinchRef = useRef<{ dist: number; mid: { x: number; y: number } } | null>(null);
+
+    const handleTouchStart = useCallback((e: KonvaEventObject<TouchEvent>) => {
+        const touches = e.evt.touches;
+        if (touches.length === 2) {
+            e.evt.preventDefault();
+            const dx = touches[1].clientX - touches[0].clientX;
+            const dy = touches[1].clientY - touches[0].clientY;
+            lastPinchRef.current = {
+                dist: Math.sqrt(dx * dx + dy * dy),
+                mid: { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 },
+            };
+        }
+    }, []);
+
+    const handleTouchMove = useCallback((e: KonvaEventObject<TouchEvent>) => {
+        const touches = e.evt.touches;
+        if (touches.length !== 2 || !lastPinchRef.current) return;
+        e.evt.preventDefault();
+        const dx = touches[1].clientX - touches[0].clientX;
+        const dy = touches[1].clientY - touches[0].clientY;
+        const newDist = Math.sqrt(dx * dx + dy * dy);
+        const newMid = { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 };
+
+        const stage = stageRef.current;
+        if (!stage) return;
+        const rect = (stage.container() as HTMLElement).getBoundingClientRect();
+        const pinchX = newMid.x - rect.left;
+        const pinchY = newMid.y - rect.top;
+
+        // Zoom around pinch midpoint
+        const ratio = newDist / lastPinchRef.current.dist;
+        const oldScale = stageRef.current!.scaleX();
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale * ratio));
+        const wx = (pinchX - stage.x()) / oldScale;
+        const wy = (pinchY - stage.y()) / oldScale;
+
+        // Two-finger pan delta
+        const panDx = newMid.x - lastPinchRef.current.mid.x;
+        const panDy = newMid.y - lastPinchRef.current.mid.y;
+
+        setStageScale(newScale);
+        setStagePos({ x: pinchX - wx * newScale + panDx, y: pinchY - wy * newScale + panDy });
+
+        lastPinchRef.current = { dist: newDist, mid: newMid };
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+        lastPinchRef.current = null;
     }, []);
 
     const isPanTool = toolState.tool === 'select';
@@ -523,6 +575,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 scaleX={stageScale}
                 scaleY={stageScale}
                 onWheel={handleWheel}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 onMouseDown={handleMouseDown}
                 onMouseMove={e => {
                     // track eraser circle position
