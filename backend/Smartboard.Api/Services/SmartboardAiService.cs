@@ -26,7 +26,9 @@ public sealed class SmartboardAiService : ISmartboardAiService
     private const string SystemPrompt =
         "You are an expert K-12 teaching assistant for Indian schools following the CBSE curriculum. " +
         "Be concise, accurate, and appropriate for the grade level. " +
-        "Reply in plain text without markdown formatting or bullet symbols.";
+        "Format your response using markdown: use **bold** for key terms and headings, numbered or bulleted lists for steps. " +
+        "Write mathematical expressions using Unicode characters (e.g. x\u00b2, y\u00b3, \u00bd, \u221a, \u03c0, \u2260, \u2264, \u2265) " +
+        "\u2014 do NOT use LaTeX delimiters like $ or \\[. Keep language student-friendly.";
 
     // Maps lasso-tab instruction names → user-facing task description
     private static readonly Dictionary<string, string> SelectionPrompts = new(StringComparer.OrdinalIgnoreCase)

@@ -2,6 +2,8 @@
 // Right panel (30%) of SmartboardSessionPage — shows AI responses for a teacher's lasso selection.
 // Teacher circles something on the canvas → clicks "Ask AI ✨" → this panel loads 4 tabs.
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { aiService } from '@/services/aiService';
 
 type Tab = 'solution' | 'explain' | 'mistakes' | 'quiz';
@@ -149,7 +151,13 @@ export default function AiAssistPanel({ query, sessionId }: Props) {
                     <p className="text-rose-400">{current.content}</p>
                 )}
                 {current.status === 'done' && (
-                    <div className="whitespace-pre-wrap">{current.content}</div>
+                    <div className="prose prose-invert prose-sm max-w-none
+                        prose-p:my-1.5 prose-li:my-0.5 prose-ol:my-1 prose-ul:my-1
+                        prose-strong:text-slate-100 prose-headings:text-slate-200">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {current.content}
+                        </ReactMarkdown>
+                    </div>
                 )}
             </div>
         </div>
