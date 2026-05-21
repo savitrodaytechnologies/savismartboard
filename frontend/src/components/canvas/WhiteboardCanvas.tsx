@@ -92,6 +92,14 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const textInputRef = useRef(textInput);
     textInputRef.current = textInput;
 
+    // Reliably focus the textarea when it appears (autoFocus alone is not enough
+    // because the Konva pointerdown event can steal focus after mount)
+    useEffect(() => {
+        if (textInput && textareaRef.current) {
+            textareaRef.current.focus();
+        }
+    }, [textInput]);
+
     // Lasso selection
     const isLasso = useRef(false);
     const lassoPointsRef = useRef<number[]>([]);
@@ -321,10 +329,14 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             setPreviewShape({ x, y, w: 0, h: 0 });
             setPreviewEnd(null);
         } else if (toolState.tool === 'text') {
-            // Commit any existing open text input before opening a new one
-            if (textareaRef.current) commitText(textareaRef.current.value, textInputRef.current);
-            const ptr = stage.getPointerPosition();
-            if (ptr) setTextInput({ screenX: ptr.x, screenY: ptr.y, worldX: x, worldY: y });
+            if (textInputRef.current) {
+                // Textarea already open — commit it and do NOT open another one on this click
+                if (textareaRef.current) commitText(textareaRef.current.value, textInputRef.current);
+            } else {
+                // No open textarea — place a new one at the click position
+                const ptr = stage.getPointerPosition();
+                if (ptr) setTextInput({ screenX: ptr.x, screenY: ptr.y, worldX: x, worldY: y });
+            }
         } else if (toolState.tool === 'lasso') {
             isLasso.current = true;
             lassoPointsRef.current = [x, y];
