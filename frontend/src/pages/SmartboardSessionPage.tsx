@@ -157,6 +157,7 @@ export default function SmartboardSessionPage() {
                     savedViewport={viewportStore.current[currentPageIndex]}
                     onViewportChange={saveViewport}
                     onAiCapture={readOnly ? undefined : handleAiCapture}
+                    onToolChange={patch => !readOnly && setToolState(prev => ({ ...prev, ...patch }))}
                 />
             )}
 

@@ -37,11 +37,12 @@ interface Props {
     savedViewport?: { scale: number; pos: { x: number; y: number } };
     onViewportChange: (v: { scale: number; pos: { x: number; y: number } }) => void;
     onAiCapture?: (dataUrl: string) => void;
+    onToolChange?: (patch: Partial<ToolState>) => void;
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear, savedViewport, onViewportChange, onAiCapture }: Props) {
+export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear, savedViewport, onViewportChange, onAiCapture, onToolChange }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const stageRef = useRef<Konva.Stage>(null);
 
@@ -96,7 +97,11 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     // because the Konva pointerdown event can steal focus after mount)
     useEffect(() => {
         if (textInput && textareaRef.current) {
-            textareaRef.current.focus();
+            // setTimeout pushes focus call after all synchronous pointer-event
+            // handlers (including Konva's) have finished, ensuring the textarea
+            // actually receives and keeps focus on the first click.
+            const id = setTimeout(() => textareaRef.current?.focus(), 0);
+            return () => clearTimeout(id);
         }
     }, [textInput]);
 
@@ -447,7 +452,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             onRedoClear();
             onCommit(prev => [...prev, buildTextAnnotation(pos.worldX, pos.worldY, trimmed, toolState)]);
         }
-    }, [toolState, page.annotations, onCommit, onUndoPush, onRedoClear]);
+        // Return to select tool after placing text (one-shot behaviour)
+        onToolChange?.({ tool: 'select' });
+    }, [toolState, page.annotations, onCommit, onUndoPush, onRedoClear, onToolChange]);
 
     // ── Zoom button helpers ──────────────────────────────────────────────────
     const zoomBy = useCallback((factor: number) => {
