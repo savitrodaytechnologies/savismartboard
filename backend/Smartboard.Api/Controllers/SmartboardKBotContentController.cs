@@ -6,7 +6,7 @@ namespace Smartboard.Api.Controllers;
 
 [ApiController]
 [AllowAnonymous]
-[Route("api/smartboard/kbot")]
+[Route("api/v1/smartboard/kbot")]
 public sealed class SmartboardKBotContentController : ControllerBase
 {
     private readonly IKBotContentService _svc;

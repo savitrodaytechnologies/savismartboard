@@ -7,7 +7,7 @@ namespace Smartboard.Api.Controllers;
 
 [ApiController]
 [AllowAnonymous]
-[Route("api/smartboard/ai")]
+[Route("api/v1/smartboard/ai")]
 public sealed class SmartboardAiController : ControllerBase
 {
     private readonly ISmartboardAiService _svc;

@@ -1,6 +1,6 @@
 # Savischools Smartboard — Detailed Design Document
 
-> Version: 1.3  
+> Version: 1.5  
 > Date: 17 May 2026  
 > Status: In development — see §16 for current implementation status  
 > Owners: Parivesh (Smartboard Core) · Manohar (Savischools Integration) · Mukesh (KBot Integration)
@@ -139,7 +139,7 @@ The Smartboard App is a **classroom delivery layer**. It does not own users, syl
 ```
 
 **KBot background HTML stripping (implemented 17 May 2026):**  
-For `KBotContentCard`, `KBotQuestion`, and `KBotSolvedCard` source types, the rendered HTML is **not** embedded in `background.url` inside `PageJson`. The HTML is already stored in KBot's own database and served via `/api/smartboard/kbot/content-cards/{id}/render`. Embedding it was causing 50–200 KB of redundant data per page. The frontend's `useSmartboardSession` hook now:
+For `KBotContentCard`, `KBotQuestion`, and `KBotSolvedCard` source types, the rendered HTML is **not** embedded in `background.url` inside `PageJson`. The HTML is already stored in KBot's own database and served via `/api/v1/smartboard/kbot/content-cards/{id}/render`. Embedding it was causing 50–200 KB of redundant data per page. The frontend's `useSmartboardSession` hook now:
 1. Serialises `PageJson` **without** `background.url` for KBot sources.
 2. On load, a re-hydration `useEffect` fetches the card HTML via `kbotContentService.render()` (IndexedDB `cardCache` first → KBot API fallback) and patches it into React state.
 3. `WhiteboardCanvas` renders a blank background while the fetch is in-flight — graceful, no flicker for cached cards.
@@ -172,49 +172,52 @@ When a session is ended, `PageJson` (annotations) is archived to S3. See §4.3.
 
 ## 5. API Surface (Smartboard backend)
 
-All routes are under `/api/smartboard/`. The browser never calls Savischools or KBot directly.
+All versioned routes are under `/api/v1/smartboard/`. The browser never calls Savischools or KBot directly.
+
+> **Versioning policy:** All Smartboard routes carry a `/v1/` prefix from v1.4 onwards. The `api/dev` endpoint is excluded from versioning (dev-only, never called by production clients). The Vite dev proxy matches `/api` (prefix), so both `/api/v1/...` and `/api/dev/...` are proxied without config changes. Android and future native clients target `/api/v1/` directly.
 
 ### 5.1 Context (Manohar)
 ```
-GET  /api/smartboard/context                       → current teacher profile + school
-GET  /api/smartboard/classes                       → classes assigned to teacher
-GET  /api/smartboard/sections?classId=             → sections for a class
-GET  /api/smartboard/subjects?classId=             → subjects the teacher teaches
-GET  /api/smartboard/topics?subjectId=&classId=    → syllabus topics
-POST /api/smartboard/syllabus/topics/{topicId}/mark-taught
+GET  /api/v1/smartboard/context                       → current teacher profile + school
+GET  /api/v1/smartboard/classes                       → classes assigned to teacher
+GET  /api/v1/smartboard/sections?classId=             → sections for a class
+GET  /api/v1/smartboard/subjects?classId=             → subjects the teacher teaches
+GET  /api/v1/smartboard/topics?subjectId=&classId=    → syllabus topics
+POST /api/v1/smartboard/syllabus/topics/{topicId}/mark-taught
 ```
 
 ### 5.2 KBot proxy (Mukesh)
 ```
-GET  /api/smartboard/kbot/topics/{topicId}/content-cards
-GET  /api/smartboard/kbot/content-cards/{cardId}
-GET  /api/smartboard/kbot/content-cards/{cardId}/versions
-GET  /api/smartboard/kbot/content-cards/{cardId}/render?versionId=
-GET  /api/smartboard/kbot/topics/{topicId}/questions?difficulty=
-GET  /api/smartboard/kbot/questions/{questionId}
-GET  /api/smartboard/kbot/questions/{questionId}/basic-explanation
-GET  /api/smartboard/kbot/questions/{questionId}/solved-card
+GET  /api/v1/smartboard/kbot/topics/{topicId}/content-cards
+GET  /api/v1/smartboard/kbot/content-cards/{cardId}
+GET  /api/v1/smartboard/kbot/content-cards/{cardId}/versions
+GET  /api/v1/smartboard/kbot/content-cards/{cardId}/render?versionId=
+GET  /api/v1/smartboard/kbot/topics/{topicId}/questions?difficulty=
+GET  /api/v1/smartboard/kbot/questions/{questionId}
+GET  /api/v1/smartboard/kbot/questions/{questionId}/basic-explanation
+GET  /api/v1/smartboard/kbot/questions/{questionId}/solved-card
 ```
 All responses include `eTag` + `updatedAt` for caching.
 
 ### 5.3 Sessions, export, share, AI (Parivesh)
 ```
-POST /api/smartboard/sessions/start
-PUT  /api/smartboard/sessions/{sessionId}/save           (idempotent, accepts page diffs)
-POST /api/smartboard/sessions/{sessionId}/pages          (append a page)
-PUT  /api/smartboard/sessions/{sessionId}/pages/{pageId} (replace page)
-GET  /api/smartboard/sessions/{sessionId}
-GET  /api/smartboard/sessions/recent
-POST /api/smartboard/sessions/{sessionId}/end
-POST /api/smartboard/sessions/{sessionId}/export         (pdf)
-POST /api/smartboard/sessions/{sessionId}/share          (to student/parent portal)
+POST /api/v1/smartboard/sessions/start
+PUT  /api/v1/smartboard/sessions/{sessionId}/save           (idempotent, accepts page diffs)
+POST /api/v1/smartboard/sessions/{sessionId}/pages          (append a page)
+PUT  /api/v1/smartboard/sessions/{sessionId}/pages/{pageId} (replace page)
+GET  /api/v1/smartboard/sessions/{sessionId}
+GET  /api/v1/smartboard/sessions/recent
+POST /api/v1/smartboard/sessions/{sessionId}/end
+POST /api/v1/smartboard/sessions/{sessionId}/export         (pdf)
+POST /api/v1/smartboard/sessions/{sessionId}/share          (to student/parent portal)
 
-POST /api/smartboard/ai/explain-differently
-POST /api/smartboard/ai/simplify
-POST /api/smartboard/ai/local-example
-POST /api/smartboard/ai/quick-quiz
-POST /api/smartboard/ai/summary
-POST /api/smartboard/ai/homework
+POST /api/v1/smartboard/ai/explain-differently
+POST /api/v1/smartboard/ai/simplify
+POST /api/v1/smartboard/ai/local-example
+POST /api/v1/smartboard/ai/quick-quiz
+POST /api/v1/smartboard/ai/summary
+POST /api/v1/smartboard/ai/homework
+POST /api/v1/smartboard/ai/ask-selection
 ```
 
 ### 5.4 Cross-cutting headers
@@ -500,6 +503,34 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 | **Strip KBot HTML from PageJson** | `serialise()` omits `background.url` for `KBotContentCard`, `KBotQuestion`, `KBotSolvedCard`. Saves 50–200 KB per page. Re-hydration effect in `useSmartboardSession` fetches HTML on load (IndexedDB cache first). DB migration `002` strips existing rows. |
 | **S3 archival on session end** | Bucket `savismartboard-sessions` (ap-south-1, private). On `EndAsync`: mark Ended → gzip each page's `PageJson` → `PutObject` → `UPDATE SET PageJsonUrl=key, PageJson=NULL`. `GetAsync` re-hydrates from S3 for ended sessions. EC2 IAM role granted access. DB migration `003` adds `PageJsonUrl NVARCHAR(1000) NULL` and makes `PageJson` nullable. |
 
+#### Database connection — AWS RDS
+| Change | Detail |
+|---|---|
+| **RDS `smartuser` credential** | Default `appsettings.json` pointed to `localhost` SQL Server. `appsettings.Local.json` (gitignored) overrides `ConnectionStrings.Smartboard` to target `rdsexpserver.ccmuwbvpbelg.ap-south-1.rds.amazonaws.com`, DB=`savismartboard`, User=`smartuser`. |
+| **`create_app_user.sql`** | `db/scripts/create_app_user.sql` creates the `smartuser` login + DB user idempotently and grants `db_datareader` + `db_datawriter` on `savismartboard`. Run once against RDS before first deploy. |
+
+#### Tablet / touch compatibility
+| Change | Detail |
+|---|---|
+| **iPad Safari drawing fix** | React synthetic `onTouchMove` handlers are passive by default — `e.preventDefault()` was silently ignored, causing iOS to scroll the page instead of drawing. Fix: `useEffect` attaches non-passive native `touchstart`/`touchmove` listeners directly on the canvas container (skipping `button`/`textarea`/`input` targets). Body `overflow: hidden` + `touchAction: none` set on mount. |
+| **Android scrollbar pointer capture** | Scrollbar thumb drag handlers changed from `onMouseDown` to `onPointerDown` with `(e.target as HTMLElement).setPointerCapture(e.pointerId)`. Fixes drag release on Android tablets where `mousedown` events are not fired for touch. |
+
+#### API versioning
+| Change | Detail |
+|---|---|
+| **`/v1/` prefix added to all routes** | All 6 non-dev controllers updated: `[Route("api/smartboard/...")]` → `[Route("api/v1/smartboard/...")]`. `DevController` keeps `api/dev` (dev-only, excluded from public API contract). |
+| **Frontend `apiClient` base URL** | `baseURL: '/api'` → `'/api/v1'` in `apiClient.ts`. All 20+ service calls pick up the new prefix automatically. `devAuth.ts` uses raw `fetch('/api/dev/token')` and is unaffected. |
+| **Vite proxy unchanged** | Proxy pattern is `/api` (prefix match) — covers both `/api/dev/...` and `/api/v1/...` with no config change. |
+
+#### Production AI key injection fix
+| Change | Detail |
+|---|---|
+| **Root cause** | `appsettings.Production.json` has provider config but no `ApiKey` values. `deploy.sh` only wrote `ConnectionStrings__Smartboard` to `/opt/smartboard/env`. Both AI providers had empty keys on the EC2 → Anthropic/DeepSeek rejected calls with 401 → frontend showed "Could not get a response." |
+| **`deploy.sh`** | Updated to accept `SMARTBOARD_AI_TEXT_KEY` and `SMARTBOARD_AI_VISION_KEY` env vars and write them to `/opt/smartboard/env` as `Ai__Providers__deepseek__ApiKey` and `Ai__Providers__copilot__ApiKey` / `Ai__Providers__anthropic__ApiKey`. Keys are skipped (not written) if the env var is not set — backwards-compatible. |
+| **`deploy.yml`** | Updated to read `SMARTBOARD_AI_TEXT_KEY` and `SMARTBOARD_AI_VISION_KEY` from GitHub Actions secrets and pass them through to `deploy.sh`. |
+| **GitHub secrets required** | Two new secrets must be added in repo Settings → Secrets → Actions: `SMARTBOARD_AI_TEXT_KEY` (DeepSeek key) and `SMARTBOARD_AI_VISION_KEY` (Anthropic key). See §16.1 for full secrets list. |
+| **Immediate EC2 fix** | Run on EC2 to apply without waiting for a deploy: `sudo tee -a /opt/smartboard/env <<'EOF'` then add the two `Ai__Providers__*__ApiKey` lines, then `sudo systemctl restart smartboard-api`. |
+
 ---
 
 ### 16.1 Infrastructure
@@ -512,6 +543,24 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 | Health endpoint `/healthz` | ✅ Returns `Healthy` | |
 | `sqlcmd` on EC2 | ✅ Installed | mssql-tools18 via Microsoft RHEL9 repo; used for DB migrations |
 
+**Required GitHub Actions secrets** (repo Settings → Secrets → Actions):
+
+| Secret | Purpose |
+|---|---|
+| `EC2_HOST` | EC2 public IP — `13.205.70.12` |
+| `EC2_SSH_KEY` | Contents of `saviknowledgebot.pem` |
+| `SMARTBOARD_DB_CONNSTR` | Full ADO.NET connection string (includes password) |
+| `SMARTBOARD_AI_TEXT_KEY` | DeepSeek API key (`sk-...`) — used for all text-only AI prompts |
+| `SMARTBOARD_AI_VISION_KEY` | Anthropic API key (`sk-ant-...`) — used for lasso vision + Claude text fallback |
+
+**`/opt/smartboard/env` format on EC2** (written by `deploy.sh`, read by systemd `EnvironmentFile=`):
+```
+ConnectionStrings__Smartboard=Server=...;Database=savismartboard;...
+Ai__Providers__deepseek__ApiKey=sk-...
+Ai__Providers__copilot__ApiKey=sk-ant-...
+Ai__Providers__anthropic__ApiKey=sk-ant-...
+```
+
 ### 16.2 Backend services
 | Service | Status | Notes |
 |---|---|---|
@@ -520,7 +569,7 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 | `KBotQuestionService` | ✅ Implemented | list / detail / explanation / solved-card / submit |
 | `SmartboardContextService` | 🟡 KBot proxy | Returns KBot data as placeholder; must be replaced with real Savischools data when M1 is done |
 | `SmartboardSessionService` | 🟡 Partial | Create / get / recent / save-page / end / rename / delete working; S3 archival on end implemented; export + share return placeholder URLs |
-| `SmartboardAiService` | 🔴 Stub | All 6 methods return `[kind] {instruction}` |
+| `SmartboardAiService` | ✅ Implemented | `AskSelectionAsync` (vision + text via `HybridAiClient`), all 6 text prompts (`ExplainDifferently`, `Simplify`, `LocalExample`, `QuickQuiz`, `Summary`, `Homework`) — real AI calls via DeepSeek (text) and Anthropic Claude (vision) |
 | `S3PageArchiveService` | ✅ Implemented | `ArchivePageAsync` (gzip + PutObject), `RestorePageAsync` (GetObject + gunzip); registered as singleton; uses EC2 IAM role automatically |
 
 ### 16.3 Backend controllers — auth
@@ -606,7 +655,7 @@ The session page uses a **70/30 horizontal split**:
 ### 17.4 API — ask-selection endpoint
 
 ```
-POST /api/smartboard/ai/ask-selection
+POST /api/v1/smartboard/ai/ask-selection
 Body: { imageBase64: string, instruction: string, sessionId?: number }
 Response: { result: string, tokenCount: number, costUsd: number }
 ```
@@ -636,6 +685,305 @@ The image is a JPEG data URL (`data:image/jpeg;base64,...`) of the circled regio
 5. M5 share — signed URL delivery to Savischools student/parent portal.
 6. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
 7. S3 cleanup on session delete — `DeleteSessionAsync` currently only removes SQL rows; S3 objects for deleted sessions are not yet purged.
+
+---
+
+## 18. Shared EC2 Infrastructure
+
+> Added: 18 May 2026. Describes the actual production state where **KBot** and **Savismartboard** share a single EC2 instance.
+
+### 18.1 Overview
+
+Both apps run on **one EC2 instance** (`i-0d678aebfb32f889e`, `13.205.70.12`, `ap-south-1`).  
+This was a deliberate cost-saving decision during the pilot phase. The two apps use different process managers and are isolated at the port and memory level.
+
+| App | Domain | Process manager | Language / Runtime |
+|---|---|---|---|
+| KBot | `kbot.svais.net` | Docker Compose | Python (FastAPI) + Node.js (Next.js) + Qdrant |
+| Savismartboard | `teach.svais.net` | systemd | ASP.NET Core 8 / .NET 8 (Kestrel) |
+
+---
+
+### 18.2 Port Map (verified 18 May 2026 via `ss -tlnp`)
+
+| Port | Process | Purpose |
+|---|---|---|
+| `80` | docker-proxy (`saviknowledgebot-nginx-1`) | HTTP → HTTPS redirect for both domains |
+| `443` | docker-proxy (`saviknowledgebot-nginx-1`) | HTTPS gateway for both domains |
+| `5000` | dotnet (`smartboard-api`) | Smartboard API + SPA static files (Kestrel) |
+| `3000` | docker-proxy | KBot Next.js frontend |
+| `8000` | docker-proxy | KBot FastAPI backend |
+| `6333-6334` | Docker internal only | Qdrant vector DB (not exposed on host) |
+
+---
+
+### 18.3 nginx Architecture
+
+**There is one active nginx — the KBot Docker container `saviknowledgebot-nginx-1`.**  
+It holds ports 80 and 443 and routes for *both* domains.
+
+```
+Internet
+  │
+  ├─ :80  ─► saviknowledgebot-nginx-1 (Docker)
+  │              └─ redirect to HTTPS (both domains)
+  │
+  └─ :443 ─► saviknowledgebot-nginx-1 (Docker)
+               ├─ server_name kbot.svais.net
+               │    ├─ /api, /health, /docs  ──► backend:8000  (Docker DNS)
+               │    └─ /                     ──► frontend:3000 (Docker DNS)
+               │
+               └─ server_name teach.svais.net
+                    └─ /  (everything) ─────────► http://172.18.0.1:5000
+                                                  (Docker bridge gateway → host Kestrel)
+```
+
+**Key implementation detail:**  
+`172.18.0.1` is the standard Docker bridge gateway IP — the address the Docker nginx container uses to reach services running directly on the EC2 host. The Smartboard Kestrel process listening on `0.0.0.0:5000` is reachable at that address from inside any Docker container on the default bridge network.
+
+**Kestrel serves both the API and the React SPA:**  
+`Program.cs` uses `app.UseDefaultFiles()` + `app.UseStaticFiles()` + `app.MapFallbackToFile("index.html")`.  
+At build time (GitHub Actions), the React `dist/` output is embedded into the .NET publish output under `wwwroot/`, packaged in `api.tar.gz`, and deployed to `/opt/smartboard/api/wwwroot/`.  
+`/opt/smartboard/www/` is a reference copy only (kept for historical reasons by `deploy.sh`).
+
+**Host system nginx:** The system `nginx` package is installed (by `install.sh`) and there is a `smartboard.conf` in `/etc/nginx/conf.d/`, but the service is **inactive/failed** because Docker took ports 80 and 443 first. The host nginx plays no part in live traffic.
+
+---
+
+### 18.4 nginx Config — Where It Lives and Who Owns It
+
+The shared nginx config file is:
+```
+/opt/saviknowledgebot/deploy/nginx.conf   (on EC2)
+                     ↕ bind-mounted into Docker as
+/etc/nginx/conf.d/default.conf            (inside saviknowledgebot-nginx-1)
+```
+
+**This file is owned by the KBot project** (`saviknowledgebot` repo).  
+The `teach.svais.net` server blocks were **manually added directly on the EC2** — they are **not** currently committed in the `saviknowledgebot` git repository.
+
+The actual live `teach.svais.net` HTTPS block (as of 18 May 2026):
+```nginx
+server {
+    listen 443 ssl;
+    server_name teach.svais.net;
+
+    ssl_certificate     /etc/letsencrypt/live/teach.svais.net/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/teach.svais.net/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    location / {
+        proxy_pass         http://172.18.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+---
+
+### 18.5 SSL Certificates
+
+Both domains have separate Let's Encrypt certificates on the EC2:
+```
+/etc/letsencrypt/live/kbot.svais.net/
+/etc/letsencrypt/live/teach.svais.net/
+```
+
+Both are bind-mounted read-only into the Docker nginx container (`/etc/letsencrypt:/etc/letsencrypt:ro`).
+
+**Renewal:** Certbot must use **webroot mode** (not `--nginx` mode and not standalone) because:
+- The KBot Docker nginx already occupies port 80/443
+- There is a `/.well-known/acme-challenge/` block in the nginx config pointing to `/var/www/certbot` (which is the Docker volume `saviknowledgebot_certbot_webroot`)
+- After renewal, run `docker exec saviknowledgebot-nginx-1 nginx -s reload` to pick up the new certs
+
+---
+
+### 18.6 Deploy Interaction Between the Two Apps
+
+**Smartboard deploy (GitHub Actions → `deploy.sh`):**
+1. Rewrites `/opt/smartboard/env` with secrets
+2. Stops `smartboard-api` (systemd)
+3. Extracts `api.tar.gz` to `/opt/smartboard/api/` (includes `wwwroot/` with React SPA)
+4. Extracts `www.tar.gz` to `/opt/smartboard/www/` (reference copy, unused by Kestrel)
+5. Starts `smartboard-api` (systemd)
+6. Reloads Docker nginx: `docker exec saviknowledgebot-nginx-1 nginx -s reload`
+
+**Dependency:** Step 6 of Smartboard's deploy depends on KBot's Docker nginx container being alive.  
+If `saviknowledgebot-nginx-1` is not running, the reload silently skips (guarded by `&& … || true`).
+
+**KBot deploy (`docker compose up --profile production -d`):**
+- Recreates the nginx container from the base image — but the config is a bind-mount so changes in `/opt/saviknowledgebot/deploy/nginx.conf` are immediately picked up
+- Does NOT affect the Smartboard systemd service directly
+- However, during the few seconds the nginx container is recreating, both `kbot.svais.net` AND `teach.svais.net` are unreachable
+
+---
+
+### 18.7 Resource Isolation
+
+| Resource | KBot | Smartboard |
+|---|---|---|
+| Memory | No Docker `--memory` limit set | `MemoryMax=800M` (systemd) |
+| CPU | No Docker CPU limit | No cgroup CPU limit |
+| Storage | `/opt/saviknowledgebot/`, Docker volumes | `/opt/smartboard/` |
+| Network | Docker bridge (`saviknowledgebot_default`) | Host network (port 5000) |
+| Logs | Docker log driver (JSON file) | journald + `/opt/smartboard/logs/` |
+
+**RAM budget note:** The EC2 has ~4 GB RAM and 2 GB swap. KBot's Qdrant + FastAPI + Next.js typically uses ~1.5–2 GB. Smartboard's Kestrel is capped at 800 MB. Under peak AI usage on KBot, the system may approach memory limits and trigger swap use, degrading response times for both apps.
+
+---
+
+### 18.8 Known Conflicts and Risks
+
+#### CRITICAL — KBot deploy can silently break `teach.svais.net`
+
+The `teach.svais.net` nginx blocks were manually added to `/opt/saviknowledgebot/deploy/nginx.conf` on the EC2.  
+They are **not** in the `saviknowledgebot` git repository.
+
+**Impact:** If anyone runs `git pull` in `/opt/saviknowledgebot/` or redeploys KBot from the repo, the `nginx.conf` file will be overwritten with the version that only has `kbot.svais.net`. The Docker nginx will reload and `teach.svais.net` will return 404 or SSL mismatch errors.
+
+**Fix:** Commit the `teach.svais.net` server blocks into the `saviknowledgebot` repo's `deploy/nginx.conf` permanently.
+
+---
+
+#### MEDIUM — `172.18.0.1` Docker bridge gateway IP is implicit
+
+The `teach.svais.net` nginx block hard-codes `http://172.18.0.1:5000`. This is the standard Docker bridge gateway but:
+- It changes if Docker is reinstalled and creates a different bridge subnet
+- It changes if a custom Docker network with a different subnet is configured
+- If the Smartboard Kestrel binds only on localhost (`127.0.0.1:5000`), the Docker container can't reach it
+
+**Fix:** Keep Kestrel binding on `0.0.0.0:5000` (as configured in the systemd env file). Document the IP so future operators know where it comes from.
+
+---
+
+#### LOW — Host system nginx is broken
+
+`systemctl is-active nginx` returns `failed`. The `install.sh` script installs and tries to start host nginx, but it cannot bind port 80 because Docker has it. The `install.sh` is therefore **idempotent but non-functional** for nginx on this shared EC2.
+
+The `install.sh` nginx steps can be removed or guarded with a Docker-presence check if the script is ever re-run.
+
+---
+
+#### LOW — SSL cert renewal for `teach.svais.net` is not automated
+
+KBot has a certbot renewal process for `kbot.svais.net`. The `teach.svais.net` cert was provisioned manually and must be renewed manually (or a renewal cron job must be added).
+
+Renewal command (run on EC2):
+```bash
+sudo certbot certonly --webroot -w /var/lib/docker/volumes/saviknowledgebot_certbot_webroot/_data \
+  -d teach.svais.net --non-interactive --agree-tos -m admin@svais.net
+sudo docker exec saviknowledgebot-nginx-1 nginx -s reload
+```
+
+---
+
+### 18.9 Troubleshooting Guide
+
+Use AWS SSM (`.\scripts\Invoke-Ssm.ps1` from the `saviknowledgebot` project directory) to run commands without SSH.
+
+#### `teach.svais.net` returns SSL error or "connection refused"
+
+```bash
+# Is Kestrel running?
+sudo systemctl status smartboard-api
+
+# Is Docker nginx running?
+docker ps | grep nginx
+
+# Are both server blocks in the live nginx config?
+grep server_name /opt/saviknowledgebot/deploy/nginx.conf
+
+# Is Kestrel listening on 5000?
+ss -tlnp | grep 5000
+
+# Can Docker nginx reach Kestrel? (run from inside container)
+docker exec saviknowledgebot-nginx-1 wget -qO- http://172.18.0.1:5000/healthz
+```
+
+#### `teach.svais.net` loads but API calls fail (`/api/v1/...` returns 502)
+
+```bash
+# Check Kestrel logs
+journalctl -u smartboard-api -n 50 --no-pager
+
+# Check the env file has the DB connection string
+grep ConnectionStrings /opt/smartboard/env
+
+# Direct health check bypassing nginx
+curl http://localhost:5000/healthz
+```
+
+#### `kbot.svais.net` and `teach.svais.net` both unreachable
+
+```bash
+# Docker nginx is probably down — restart it
+docker ps -a | grep nginx
+cd /opt/saviknowledgebot && docker compose --profile production up -d nginx
+
+# After restart, verify both domains respond
+curl -k https://localhost -H "Host: teach.svais.net"
+```
+
+#### After a KBot `git pull` + redeploy, `teach.svais.net` breaks
+
+The `teach.svais.net` nginx blocks were overwritten. Re-add them manually:
+```bash
+# Edit nginx conf to re-add teach.svais.net blocks
+sudo nano /opt/saviknowledgebot/deploy/nginx.conf
+# Paste the server blocks from §18.4 above
+docker exec saviknowledgebot-nginx-1 nginx -t
+docker exec saviknowledgebot-nginx-1 nginx -s reload
+```
+
+#### Smartboard deploy step 6 ("nginx reload") fails
+
+This means `saviknowledgebot-nginx-1` is not running. The app still deploys correctly (steps 1–5 are independent). Fix by restarting the KBot Docker stack:
+```bash
+cd /opt/saviknowledgebot && docker compose --profile production up -d nginx
+```
+
+#### High memory / swap usage causing slow responses
+
+```bash
+free -h                        # check total / used / swap
+docker stats --no-stream       # per-container memory usage
+journalctl -u smartboard-api --since "10 minutes ago" -n 100 --no-pager  # any OOM events
+```
+
+---
+
+### 18.10 Startup and Recovery Order (EC2 reboot)
+
+On EC2 reboot, processes start in this order:
+1. Docker daemon (starts automatically)
+2. Docker Compose services (`saviknowledgebot-nginx-1`, `saviknowledgebot-backend-1`, etc.) via Docker's `restart: unless-stopped`
+3. `smartboard-api` systemd service (starts after `docker.service` by default dependency)
+
+**Result:** After reboot, the KBot Docker nginx holds port 80/443 before host nginx has any chance to start. Both apps should be live automatically.
+
+If `smartboard-api` fails to start (e.g., bad env file), run:
+```bash
+sudo systemctl start smartboard-api
+journalctl -u smartboard-api -n 30 --no-pager
+```
+
+---
+
+### 18.11 Future Improvements
+
+| Priority | Action |
+|---|---|
+| CRITICAL | Commit `teach.svais.net` nginx blocks into `saviknowledgebot` repo's `deploy/nginx.conf` |
+| HIGH | Add certbot renewal cron for `teach.svais.net` using webroot mode |
+| MEDIUM | Add Docker memory limit for KBot services in `docker-compose.yml` to prevent OOM impact on Smartboard |
+| LOW | Remove defunct host nginx steps from `install.sh` or guard them with a Docker-presence check |
+| FUTURE | Migrate to separate EC2s (or separate Docker containers) as load grows |
 
 ---
 

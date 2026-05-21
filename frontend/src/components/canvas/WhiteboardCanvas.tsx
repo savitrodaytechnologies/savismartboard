@@ -138,6 +138,37 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         };
     }, []);
 
+    // iOS Safari: prevent page scroll/bounce while canvas is active.
+    // React touch handlers are passive by default so e.preventDefault() is silently
+    // ignored there; we need a native non-passive listener on the container instead.
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        document.body.style.touchAction = 'none';
+        return () => {
+            document.body.style.overflow = '';
+            document.body.style.touchAction = '';
+        };
+    }, []);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        // Prevent iOS Safari from scrolling the page on touch.
+        // Skip prevention when the touch lands on a button/input so zoom
+        // controls and scrollbar thumbs still respond to taps.
+        const prevent = (e: TouchEvent) => {
+            if (!(e.target as HTMLElement).closest('button, textarea, input')) {
+                e.preventDefault();
+            }
+        };
+        el.addEventListener('touchstart', prevent, { passive: false });
+        el.addEventListener('touchmove', prevent, { passive: false });
+        return () => {
+            el.removeEventListener('touchstart', prevent);
+            el.removeEventListener('touchmove', prevent);
+        };
+    }, []);
+
     // Clear lasso selection when switching away from lasso tool
     useEffect(() => {
         if (toolState.tool !== 'lasso') {
@@ -525,7 +556,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 toolState.tool === 'text' ? 'text' : 'crosshair';
 
     return (
-        <div ref={containerRef} className="relative flex-1 bg-neutral-50 overflow-hidden">
+        <div ref={containerRef} className="relative flex-1 bg-neutral-50 overflow-hidden" style={{ touchAction: 'none' }}>
             {/* Inline text input — appears at click position when text tool is active */}
             {textInput && (
                 <div className="absolute z-20" style={{ left: textInput.screenX, top: textInput.screenY }}>
@@ -706,8 +737,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 <div
                     className="absolute top-0.5 rounded-full bg-slate-400/70 hover:bg-slate-500/80 cursor-default transition-colors"
                     style={{ left: hThumbLeft, width: hThumbW, height: SB - 2 }}
-                    onMouseDown={e => {
+                    onPointerDown={e => {
                         e.preventDefault();
+                        (e.target as HTMLElement).setPointerCapture(e.pointerId);
                         scrollDragRef.current = {
                             axis: 'h',
                             startClient: e.clientX,
@@ -729,8 +761,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 <div
                     className="absolute left-0.5 rounded-full bg-slate-400/70 hover:bg-slate-500/80 cursor-default transition-colors"
                     style={{ top: vThumbTop, height: vThumbH, width: SB - 2 }}
-                    onMouseDown={e => {
+                    onPointerDown={e => {
                         e.preventDefault();
+                        (e.target as HTMLElement).setPointerCapture(e.pointerId);
                         scrollDragRef.current = {
                             axis: 'v',
                             startClient: e.clientY,
