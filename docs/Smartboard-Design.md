@@ -858,7 +858,13 @@ The `teach.svais.net` nginx block hard-codes `http://172.18.0.1:5000`. This is t
 - It changes if a custom Docker network with a different subnet is configured
 - If the Smartboard Kestrel binds only on localhost (`127.0.0.1:5000`), the Docker container can't reach it
 
-**Fix:** Keep Kestrel binding on `0.0.0.0:5000` (as configured in the systemd env file). Document the IP so future operators know where it comes from.
+**Fix:** Keep Kestrel binding on `0.0.0.0:5000`. The binding is set via `Environment=ASPNETCORE_URLS=http://0.0.0.0:5000` in `/etc/systemd/system/smartboard-api.service` (not in `/opt/smartboard/env`). If EC2 is provisioned from an older version of the service file (with `localhost:5000`), patch it with:
+```bash
+sed -i 's|ASPNETCORE_URLS=http://localhost:5000|ASPNETCORE_URLS=http://0.0.0.0:5000|' /etc/systemd/system/smartboard-api.service
+systemctl daemon-reload && systemctl restart smartboard-api
+```
+
+> **This exact failure occurred on 21 May 2026** — EC2 had been provisioned with `localhost:5000` while the repo already had `0.0.0.0:5000`. Result: 502 on all paths, fixed by the above sed command.
 
 ---
 
@@ -905,6 +911,24 @@ ss -tlnp | grep 5000
 # Can Docker nginx reach Kestrel? (run from inside container)
 docker exec saviknowledgebot-nginx-1 wget -qO- http://172.18.0.1:5000/healthz
 ```
+
+#### `teach.svais.net` returns 502 on **all** paths (including `/login`, static files)
+
+Kestrel is running but bound to `127.0.0.1:5000` (loopback only). The Docker nginx container cannot reach a loopback-only socket via `172.18.0.1:5000`.
+
+```bash
+# Confirm: shows 127.0.0.1:5000 instead of 0.0.0.0:5000
+ss -tlnp | grep 5000
+
+# Fix
+sed -i 's|ASPNETCORE_URLS=http://localhost:5000|ASPNETCORE_URLS=http://0.0.0.0:5000|' /etc/systemd/system/smartboard-api.service
+systemctl daemon-reload && systemctl restart smartboard-api
+
+# Verify
+ss -tlnp | grep 5000   # should show 0.0.0.0:5000
+```
+
+---
 
 #### `teach.svais.net` loads but API calls fail (`/api/v1/...` returns 502)
 
