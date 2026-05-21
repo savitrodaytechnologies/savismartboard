@@ -33,10 +33,10 @@ public sealed class SmartboardAiService : ISmartboardAiService
     // Maps lasso-tab instruction names → user-facing task description
     private static readonly Dictionary<string, string> SelectionPrompts = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["solution"] = "Look at the problem or work shown in the image. Provide a clear, step-by-step solution.",
-        ["explain"]  = "Look at the content shown in the image. Explain this concept clearly for a student who is confused.",
-        ["mistakes"] = "Look at the student work shown in the image. Identify any mathematical or conceptual mistakes. If the work is correct, confirm it.",
-        ["quiz"]     = "Based on the content shown in the image, write 3 short quiz questions with their correct answers.",
+        ["solution"] = "Look at the problem or work shown in the image. Provide a clear, step-by-step solution. Write all powers and math symbols using Unicode (e.g. x², y³, √, ≠) — never write 'x squared' or 'x cubed' in words.",
+        ["explain"]  = "Look at the content shown in the image. Explain this concept clearly for a student who is confused. Write all powers and math symbols using Unicode (e.g. x², y³, √, ≠) — never write 'x squared', 'x cubed', or 'x times x' in words.",
+        ["mistakes"] = "Look at the student work shown in the image. Identify any mathematical or conceptual mistakes. If the work is correct, confirm it. Write all math using Unicode notation (e.g. x², y³).",
+        ["quiz"]     = "Based on the content shown in the image, write 3 short quiz questions with their correct answers. Write all math using Unicode notation (e.g. x², y³).",
     };
 
     public SmartboardAiService(IAiClient client, ISmartboardUsageLogRepository log, ITeacherContextAccessor teacher)
