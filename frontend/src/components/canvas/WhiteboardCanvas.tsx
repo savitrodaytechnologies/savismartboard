@@ -131,7 +131,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     // Space bar → pan mode overlay
     useEffect(() => {
         const onDown = (e: KeyboardEvent) => {
-            if (e.code === 'Space' && !e.repeat) {
+            // Don't intercept space while the text annotation input is focused
+            if (e.code === 'Space' && !e.repeat && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') {
                 e.preventDefault();
                 spaceRef.current = true;
                 setSpaceDown(true);
