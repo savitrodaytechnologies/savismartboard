@@ -11,5 +11,5 @@ export const aiService = {
     askSelection: (instruction: string, imageBase64: string, sessionId?: number, imageMediaType?: string) =>
         api.post<{ result: string }>('/smartboard/ai/ask-selection', { instruction, imageBase64, sessionId, imageMediaType }).then(r => r.data),
     identifyTopic: (imageBase64: string, imageMediaType?: string) =>
-        api.post<{ result: string }>('/smartboard/ai/identify-topic', { imageBase64, imageMediaType }).then(r => r.data),
+        api.post<{ result: string }>('/smartboard/ai/identify-topic', { imageBase64, imageMediaType, instruction: '' }).then(r => r.data),
 };
