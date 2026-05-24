@@ -68,13 +68,9 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
 
         (async () => {
             try {
-                console.log('[TeachingSidebar] identifyTopic: calling AI…');
                 const { result: topicName } = await aiService.identifyTopic(base64, mediaType);
-                console.log('[TeachingSidebar] identifyTopic result:', topicName);
                 if (!topicName?.trim()) return;
-                console.log('[TeachingSidebar] searchTopics:', topicName.trim());
                 const results = await kbotContentService.searchTopics(topicName.trim());
-                console.log('[TeachingSidebar] searchTopics results:', results);
                 if (results.length === 0) return;
                 const top = results[0];
                 const current = activeTopicRef.current;
@@ -83,8 +79,8 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
                     setTopicHistory(h => [current, ...h].slice(0, 8));
                 }
                 setActiveTopic({ slug: top.slug, title: top.title });
-            } catch (err) {
-                console.error('[TeachingSidebar] auto-identify error:', err);
+            } catch {
+                // silent fail — don't disrupt the AI tab
             }
         })();
     }, [aiQuery?.timestamp]);
@@ -96,12 +92,9 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
         searchTimer.current = setTimeout(async () => {
             setSearchLoading(true);
             try {
-                console.log('[TeachingSidebar] manual searchTopics:', searchQuery.trim());
                 const results = await kbotContentService.searchTopics(searchQuery.trim());
-                console.log('[TeachingSidebar] manual searchTopics results:', results);
                 setSearchResults(results);
-            } catch (err) {
-                console.error('[TeachingSidebar] manual search error:', err);
+            } catch {
                 setSearchResults([]);
             } finally {
                 setSearchLoading(false);
