@@ -51,8 +51,7 @@ export default function ContentCardsTab({ slug }: Props) {
 
     if (!slug) return (
         <div className="p-4 text-sm text-slate-400 leading-relaxed">
-            No topic linked to this session.<br />
-            Start a new session via <strong className="text-slate-300">Teach this topic</strong> to see content cards here.
+            No topic selected. Use the <strong className="text-slate-300">search bar above</strong> to find a topic.
         </div>
     );
     if (loading) return <div className="p-4 text-sm text-slate-400">Loading content cards…</div>;

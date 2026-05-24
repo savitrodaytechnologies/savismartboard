@@ -44,7 +44,7 @@ export default function QuestionsTab({ slug, checkedIds, onToggleCheck }: Props)
             .finally(() => setLoading(false));
     }, [slug]);
 
-    if (!slug) return <div className="p-4 text-sm text-slate-400">No topic linked to this session.</div>;
+    if (!slug) return <div className="p-4 text-sm text-slate-400">No topic selected. Use the search bar above to find a topic.</div>;
     if (loading) return <div className="p-4 text-sm text-slate-400">Loading questions…</div>;
     if (error)   return <div className="p-4 text-sm text-rose-400">Failed to load questions.</div>;
 

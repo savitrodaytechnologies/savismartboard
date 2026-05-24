@@ -222,17 +222,18 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
             </div>
 
             {/* ── Tab content ──────────────────────────────────────────── */}
+            {/* All panels stay mounted so AiAssistPanel doesn't re-fetch on tab switch */}
             <div className="flex-1 overflow-hidden">
-                {activeTab === 'content'   && <ContentCardsTab slug={activeTopic.slug} />}
-                {activeTab === 'questions' && (
+                <div className={`h-full ${activeTab !== 'content'   ? 'hidden' : ''}`}><ContentCardsTab slug={activeTopic.slug} /></div>
+                <div className={`h-full ${activeTab !== 'questions' ? 'hidden' : ''}`}>
                     <QuestionsTab
                         slug={activeTopic.slug}
                         checkedIds={checkedIds}
                         onToggleCheck={handleToggleCheck}
                     />
-                )}
-                {activeTab === 'quiz' && <QuizTab questions={checkedQuestions} />}
-                {activeTab === 'ai'   && <AiAssistPanel query={aiQuery} sessionId={sessionId} />}
+                </div>
+                <div className={`h-full ${activeTab !== 'quiz' ? 'hidden' : ''}`}><QuizTab questions={checkedQuestions} /></div>
+                <div className={`h-full ${activeTab !== 'ai'   ? 'hidden' : ''}`}><AiAssistPanel query={aiQuery} sessionId={sessionId} /></div>
             </div>
         </div>
     );
