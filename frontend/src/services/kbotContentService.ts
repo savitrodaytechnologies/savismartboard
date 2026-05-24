@@ -1,11 +1,13 @@
 // Owner: Parivesh
 import { api } from './apiClient';
 import { db } from '@/db/localDb';
-import type { TopicCardsDto, ContentCardVersion, RenderedCard } from '@/types';
+import type { TopicCardsDto, ContentCardVersion, RenderedCard, KBotTopicSearchResult } from '@/types';
 
 export const kbotContentService = {
     topicCards: (slug: string) =>
         api.get<TopicCardsDto>(`/smartboard/kbot/topics/${encodeURIComponent(slug)}/cards`).then(r => r.data),
+    searchTopics: (q: string) =>
+        api.get<KBotTopicSearchResult[]>(`/smartboard/kbot/topics/search`, { params: { q } }).then(r => r.data),
     versions: (cardId: number) =>
         api.get<ContentCardVersion[]>(`/smartboard/kbot/content-cards/${cardId}/versions`).then(r => r.data),
     render: async (cardId: number, versionId?: number): Promise<RenderedCard> => {

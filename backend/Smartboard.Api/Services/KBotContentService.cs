@@ -7,6 +7,9 @@ namespace Smartboard.Api.Services;
 
 public interface IKBotContentService
 {
+    /// <summary>GET /topics/search?q={query} — ranked topic search across the full KBot catalogue.</summary>
+    Task<IReadOnlyList<KBotTopicSearchResultDto>> SearchTopicsAsync(string query, CancellationToken ct = default);
+
     /// <summary>GET /topic/{slug}/cards — card level availability (L0–L6) for a topic.</summary>
     Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct = default);
 
@@ -52,10 +55,29 @@ public sealed class KBotContentService : IKBotContentService
         [property: JsonPropertyName("viewport_height")] int ViewportHeight,
         [property: JsonPropertyName("etag")] string ETag);
 
+    // __ private KBot search response shape ______________________________________
+    private sealed record KBotSearchResultR(
+        [property: JsonPropertyName("slug")]          string Slug,
+        [property: JsonPropertyName("title")]         string Title,
+        [property: JsonPropertyName("board")]         string? Board,
+        [property: JsonPropertyName("grade")]         int? Grade,
+        [property: JsonPropertyName("subject")]       string? Subject,
+        [property: JsonPropertyName("chapter_title")] string? ChapterTitle,
+        [property: JsonPropertyName("floor_level")]   int? FloorLevel,
+        [property: JsonPropertyName("relevance_score")] double RelevanceScore,
+        [property: JsonPropertyName("match_reason")]  string? MatchReason);
+
     private readonly IKBotClient _client;
     public KBotContentService(IKBotClient client) => _client = client;
 
-    public async Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct = default)
+    public async Task<IReadOnlyList<KBotTopicSearchResultDto>> SearchTopicsAsync(string query, CancellationToken ct = default)
+    {
+        var resp = await _client.GetAsync($"topics/search?q={Uri.EscapeDataString(query)}", ct);
+        if (!resp.IsSuccessStatusCode) return Array.Empty<KBotTopicSearchResultDto>();
+        var raw = JsonSerializer.Deserialize<KBotSearchResultR[]>(await resp.Content.ReadAsStringAsync(ct), _json);
+        return raw?.Select(r => new KBotTopicSearchResultDto(r.Slug, r.Title, r.Board, r.Grade, r.Subject, r.ChapterTitle, r.FloorLevel, r.RelevanceScore, r.MatchReason)).ToList()
+               ?? (IReadOnlyList<KBotTopicSearchResultDto>)Array.Empty<KBotTopicSearchResultDto>();
+    }(string slug, CancellationToken ct = default)
     {
         var resp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/cards", ct);
         if (!resp.IsSuccessStatusCode) return null;

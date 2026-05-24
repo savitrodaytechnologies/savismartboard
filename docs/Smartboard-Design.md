@@ -1114,8 +1114,10 @@ Each stop has a state: `ghost` (not yet reached) → `recommended` (next up) →
 
 ```
 ┌──────────────────────────────────┬──────────────────────────────────────────┐
-│                                  │  📚 Content │ ❓ Questions │ 📝 Quiz │ 🧠 AI │
+│                                  │  [ Laws of Reflection  ✎ Change topic ]  │  ← topic header
 │   WhiteboardCanvas (70%)         ├──────────────────────────────────────────┤
+│                                  │  📚 Content │ ❓ Questions │ 📝 Quiz │ 🧠 AI │
+│                                  ├──────────────────────────────────────────┤
 │                                  │  [ Journey dots: ①②③④⑤⑥⑦ ]             │
 │                                  │  ────────────────────────────────────    │
 │                                  │  [ Feed card  (active, teal) ]           │
@@ -1126,10 +1128,44 @@ Each stop has a state: `ghost` (not yet reached) → `recommended` (next up) →
 └──────────────────────────────────┴──────────────────────────────────────────┘
 ```
 
+#### Sidebar header — topic context + override
+
+The top of the sidebar always shows the **active topic title** and a pencil/search icon. Tapping it opens an inline search box:
+
+```
+[ 🔍 Search topics...  ×  ]      ← replaces header while searching
+  Laws of Reflection  1.0  ← result, click to switch
+  Refraction of Light 0.8
+  Echo & Reverberation 0.7
+```
+
+- Search calls `GET /api/v1/smartboard/kbot/topics/search?q={query}` (live on KBot, proxied through Smartboard API at `SmartboardKBotContentController`).
+- Selecting a result sets a new `activeTopic` state in `TeachingSidebar` (overrides the `slug` prop from the URL).
+- **The session itself is unchanged** — no page restart, no DB update. The sidebar simply re-fetches Content Cards and Questions for the new slug.
+- This allows a teacher who starts a session on "Laws of Reflection" but pivots mid-lesson to "Refraction" to reload the sidebar without ending the session.
+
+**KBot search response shape** (live — 24 May 2026):
+```json
+[
+  {
+    "slug": "reflection_laws",
+    "title": "Laws of Reflection and Plane Mirrors",
+    "board": "cbse",
+    "grade": 10,
+    "subject": "physics",
+    "chapter_title": "Light – Reflection and Refraction",
+    "floor_level": 3,
+    "relevance_score": 1.0,
+    "match_reason": "..."
+  }
+]
+```
+Frontend type: `KBotTopicSearchResult` (to be added to `types/index.ts`). Service method: `kbotContentService.searchTopics(q)` → `GET /smartboard/kbot/topics/search?q=...`.
+
 | Tab | Primary data source | Key teacher actions |
 |---|---|---|
-| 📚 Content Cards | `kbotContentService.topicCards(slug)` → `SmartboardKBotContentController` | Preview card; "Add to board" (creates new canvas page) |
-| ❓ Questions | `kbotQuestionService.list(slug)` → `SmartboardQuestionController` | Difficulty filter (All / Easy / Medium / Hard); checkbox to mark for Quiz tab |
+| 📚 Content Cards | `kbotContentService.topicCards(activeTopic.slug)` → `SmartboardKBotContentController` | Preview card; "Add to board" (creates new canvas page) |
+| ❓ Questions | `kbotQuestionService.list(activeTopic.slug)` → `SmartboardQuestionController` | Difficulty filter (All / Easy / Medium / Hard); checkbox to mark for Quiz tab |
 | 📝 Quiz | Checked questions from Questions tab — client state only, no backend needed | One question at a time; Prev / Next; "Show Answer" (panel-only reveal) |
 | 🧠 AI Assist | Lasso → `aiService.askSelection` → `SmartboardAiController` | 4 sub-tabs (Solution / Explain / Mistakes / Quiz); auto-activates on "Ask AI ✨" |
 
@@ -1165,54 +1201,54 @@ Cards **accumulate** in the feed as the lesson progresses — old cards dim but 
 
 ### 19.6 Open Design Questions
 
-Resolve before coding begins:
-
-| # | Question | Options |
+| # | Question | Decision |
 |---|---|---|
-| Q1 | **Journey state persistence** | Client-only (lost on refresh) vs saved to `SmartboardSession` in DB |
-| Q2 | **Hook card source** | KBot content cards at lowest difficulty level, OR AI-generated one-liners (`POST /api/v1/smartboard/ai/hook-cards`), OR both |
-| Q3 | **Quiz answer reveal scope** | Panel-only vs also push answer text to canvas |
-| Q4 | **Empty state** | If session has no topic (blank board), show topic search OR "Select a topic from the dashboard first" |
-| Q5 | **Repair card source** | Static per-topic misconception library (new DB table + migration), OR teacher pulls from KBot content cards, OR AI-generated on demand via new prompt |
+| Q1 | **Journey state persistence** | Client-only for now (lost on refresh); revisit if teachers request session resume |
+| Q2 | **Hook card source** | KBot content cards at lowest `floor_level` returned by search endpoint |
+| Q3 | **Quiz answer reveal scope** | Panel-only reveal (simpler; avoids cluttering the board) |
+| Q4 | **Empty state / off-topic teaching** | ✅ **Resolved** — sidebar header shows topic search box. If session has no slug (blank board or old session), the search box is the default state. Teacher types topic name → `GET /kbot/topics/search?q=...` → picks a result → sidebar loads. No error, no session restart needed. |
+| Q5 | **Repair card source** | Teacher searches KBot via the topic search box and pins a content card as a repair card (Phase 4) |
+| Q6 | **Topic switch mid-session** | ✅ **Resolved** — not an error condition. Teacher taps ✎ in sidebar header, searches for the actual topic being taught, selects it. `activeTopic` state in `TeachingSidebar` overrides the URL slug; Content/Questions reload. Session record is unchanged. |
 
 ---
 
 ### 19.7 Backend Changes Required
 
 #### Phase 1–6 (sidebar + journey + interactive cards)
-No new backend endpoints required. All existing services are ready:
 
-| UI feature | Existing backend | Status |
+| UI feature | Backend endpoint | Status |
 |---|---|---|
-| Content Cards tab | `SmartboardKBotContentController` + `kbotContentService` | ✅ Ready |
-| Questions tab | `SmartboardQuestionController` + `kbotQuestionService` | ✅ Ready |
+| Content Cards tab | `GET /api/v1/smartboard/kbot/topics/{slug}/cards` | ✅ Ready |
+| Questions tab | `GET /api/v1/smartboard/kbot/topics/{slug}/questions` | ✅ Ready |
 | Quiz tab | Client state only | No backend needed |
-| AI Assist tab | `SmartboardAiController` + `aiService` | ✅ Ready |
-| Hook cards (if from KBot) | `kbotContentService.topicCards` | ✅ Ready |
+| AI Assist tab | `POST /api/v1/smartboard/ai/ask-selection` | ✅ Ready |
+| **Topic search / override** | `GET /api/v1/smartboard/kbot/topics/search?q={query}` | ✅ **Live on KBot 24 May 2026** — proxy already in `SmartboardKBotContentController` (Phase 1.5 adds frontend call) |
+
+> **Note on the search endpoint proxy:** KBot exposes `GET /topics/search?q=...`. The Smartboard API proxies it at `/api/v1/smartboard/kbot/topics/search?q=...` via `SmartboardKBotContentController`. The frontend calls it through `kbotContentService.searchTopics(q)`. No new backend code needed — Mukesh confirmed the KBot endpoint is live.
 
 #### Phase 7 additions (only if design decisions require them)
 | Addition | Trigger condition |
 |---|---|
-| `POST /api/v1/smartboard/ai/hook-cards` — AI-generate hook card one-liners + `Prompts/HookCards.txt` | Only if Q2 decides hook cards are AI-generated and topic has no KBot cards |
-| `smartboard_repair_cards` table + endpoint | Only if Q5 decides repair cards are a static per-topic library |
-| `Prompts/RepairCard.txt` + new AI endpoint | Only if Q5 decides repair cards are AI-generated |
-| `POST /api/v1/smartboard/sessions/{id}/journey` — persist stop state | Only if Q1 decides journey state is persisted to DB |
+| `POST /api/v1/smartboard/ai/hook-cards` — AI-generate hook card one-liners + `Prompts/HookCards.txt` | Only if Q2 review determines KBot has no cards at `floor_level=1` for a topic |
+| `smartboard_repair_cards` table + endpoint | Deferred — Q5 resolved to use existing KBot content cards |
+| `POST /api/v1/smartboard/sessions/{id}/journey` — persist stop state | Only if Q1 is revisited and teachers request session resume |
 
 ---
 
 ### 19.8 Implementation Roadmap
 
-| Phase | Deliverable | Key files to create / modify |
-|---|---|---|
-| **Phase 0** | Design decisions resolved (Q1–Q5 above) | — discussion only |
-| **Phase 1** | 4-tab Teaching Sidebar shell; Content Cards, Questions, Quiz tabs working | New: `TeachingSidebar.tsx`, `ContentCardsTab.tsx`, `QuestionsTab.tsx`, `QuizTab.tsx`; modify: `SmartboardSessionPage.tsx` |
-| **Phase 2** | Journey tracker (7 dots, teacher-controlled stops) | New: `JourneyDots.tsx`; journey state added to `SmartboardSessionPage.tsx` |
-| **Phase 3** | Always-active right panel (pre-loaded feed, per-stop card logic) | New: `FeedCardList.tsx`, `FeedCard.tsx`; session-start hooks |
-| **Phase 4** | Repair cards, hint ladder (Stop 6), mastery check (Stop 7) | New card-type components; optional backend (§19.7 Phase 7) |
-| **Phase 5** | Card-to-canvas interactions ("Add to board", "Write on board") | Modify: `WhiteboardCanvas.tsx` (callback API); wire sidebar tabs |
-| **Phase 6** | Closure — Class Win card, scrollable session history | Feed accumulation state; Class Win card component |
-| **Phase 7** | Backend additions (only if Phase 0 decisions require them) | New controller endpoints; optional DB migration |
-| **Phase 8** | Collapsible sidebar, keyboard navigation, pre-fetch optimisation, EC2 deploy | All |
+| Phase | Deliverable | Status | Key files to create / modify |
+|---|---|---|---|
+| **Phase 0** | Design decisions resolved (Q1–Q6 above) | ✅ Done | — discussion only |
+| **Phase 1** | 4-tab Teaching Sidebar shell; Content Cards, Questions, Quiz tabs working | ✅ Done — commit `7b2a450` | `TeachingSidebar.tsx`, `ContentCardsTab.tsx`, `QuestionsTab.tsx`, `QuizTab.tsx`; `SmartboardSessionPage.tsx` |
+| **Phase 1.5** | Topic search / override in sidebar header; `KBotTopicSearchResult` type; `kbotContentService.searchTopics()` | 🔴 Next | Modify: `TeachingSidebar.tsx`; add: `types/index.ts` (`KBotTopicSearchResult`); add method to `kbotContentService.ts` |
+| **Phase 2** | Journey tracker (7 dots, teacher-controlled stops) | 🔴 Not started | New: `JourneyDots.tsx`; journey state in `SmartboardSessionPage.tsx` |
+| **Phase 3** | Always-active right panel (pre-loaded feed, per-stop card logic) | 🔴 Not started | New: `FeedCardList.tsx`, `FeedCard.tsx`; session-start hooks |
+| **Phase 4** | Repair cards, hint ladder (Stop 6), mastery check (Stop 7) | 🔴 Not started | New card-type components |
+| **Phase 5** | Card-to-canvas interactions ("Add to board", "Write on board") | 🔴 Not started | Modify: `WhiteboardCanvas.tsx` (callback API); wire sidebar tabs |
+| **Phase 6** | Closure — Class Win card, scrollable session history | 🔴 Not started | Feed accumulation state; Class Win card component |
+| **Phase 7** | Backend additions (only if Phase 0 decisions require them) | 🔴 Conditional | New controller endpoints; optional DB migration |
+| **Phase 8** | Collapsible sidebar, keyboard navigation, pre-fetch optimisation, EC2 deploy | 🔴 Not started | All |
 
 ---
 
@@ -1259,11 +1295,14 @@ frontend/
       questions/QuestionViewer.tsx                                   (Mukesh)
       questions/SolvedCardViewer.tsx                                 (Mukesh)
       questions/AnswerRevealPanel.tsx                                (Mukesh)
-      whiteboard/WhiteboardCanvas.tsx                                (Parivesh)
-      whiteboard/WhiteboardToolbar.tsx                               (Parivesh)
-      whiteboard/AnnotationLayer.tsx                                 (Parivesh)
-      whiteboard/PageNavigator.tsx                                   (Parivesh)
-      ai/AiAssistPanel.tsx                                           (Parivesh)
+      canvas/WhiteboardCanvas.tsx                                    (Parivesh)
+      canvas/CanvasToolbar.tsx                                       (Parivesh)
+      canvas/PageStrip.tsx                                           (Parivesh)
+      canvas/AiAssistPanel.tsx                                       (Parivesh)
+      sidebar/TeachingSidebar.tsx        ← Phase 1 ✅               (Parivesh)
+      sidebar/ContentCardsTab.tsx        ← Phase 1 ✅               (Parivesh)
+      sidebar/QuestionsTab.tsx           ← Phase 1 ✅               (Parivesh)
+      sidebar/QuizTab.tsx                ← Phase 1 ✅               (Parivesh)
       sharing/ShareToPortalDialog.tsx                                (Manohar)
     services/
       savischoolsContextService.ts                                   (Manohar)

@@ -9,6 +9,16 @@ namespace Smartboard.Api.Services.Dev;
 /// </summary>
 public sealed class DevKBotContentService : IKBotContentService
 {
+    public Task<IReadOnlyList<KBotTopicSearchResultDto>> SearchTopicsAsync(string query, CancellationToken ct = default)
+    {
+        // Dev stub — returns two fake results so the search UI can be tested without KBot running
+        IReadOnlyList<KBotTopicSearchResultDto> results = new[]
+        {
+            new KBotTopicSearchResultDto("reflection_laws", $"Laws of Reflection ({query})", "cbse", 10, "physics", "Light – Reflection and Refraction", 3, 1.0, "Dev stub match"),
+            new KBotTopicSearchResultDto("linear_equations", $"Linear Equations ({query})", "cbse",  8, "maths",   "Linear Equations in One Variable",      2, 0.7, "Dev stub match"),
+        };
+        return Task.FromResult(results);
+    }
     private static string Card(string title, string body) =>
         $"""
         <div class="kbot-card" style="font-family:sans-serif;padding:24px;max-width:900px">

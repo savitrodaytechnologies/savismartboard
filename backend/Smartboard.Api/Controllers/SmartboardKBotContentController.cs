@@ -19,6 +19,13 @@ public sealed class SmartboardKBotContentController : ControllerBase
         return result is not null ? Ok(result) : NotFound();
     }
 
+    [HttpGet("topics/search")]
+    public async Task<IActionResult> SearchTopics([FromQuery] string q, CancellationToken ct)
+    {
+        var result = await _svc.SearchTopicsAsync(q, ct);
+        return Ok(result);
+    }
+
     [HttpGet("content-cards/{cardId:long}/versions")]
     public async Task<IActionResult> GetVersions(long cardId, CancellationToken ct)
         => Ok(await _svc.GetVersionsAsync(cardId, ct));
