@@ -35,6 +35,10 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
     const [searching, setSearching]       = useState(!slug);   // auto-open if no topic
     const [searchQuery, setSearchQuery]   = useState('');
     const [searchResults, setSearchResults] = useState<KBotTopicSearchResult[]>([]);
+    const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+        try { return JSON.parse(localStorage.getItem('sb:search-history') ?? '[]'); }
+        catch { return []; }
+    });
     const [searchLoading, setSearchLoading] = useState(false);
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -109,6 +113,14 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
     }, [aiQuery]);
 
     function selectTopic(result: KBotTopicSearchResult) {
+        // Save search string to history so teacher can replay / investigate
+        if (searchQuery.trim()) {
+            setSearchHistory(h => {
+                const next = [searchQuery.trim(), ...h.filter(x => x !== searchQuery.trim())].slice(0, 10);
+                localStorage.setItem('sb:search-history', JSON.stringify(next));
+                return next;
+            });
+        }
         // Push current to history before switching
         if (activeTopic.slug && activeTopic.slug !== result.slug) {
             setTopicHistory(h => [activeTopic, ...h].slice(0, 8));
@@ -205,6 +217,32 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
                             </div>
                         )}
 
+                        {/* History dropdown — shown when input is empty */}
+                        {!searchQuery.trim() && searchHistory.length > 0 && (
+                            <div className="absolute left-2 right-2 top-full mt-1 z-20 bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden">
+                                <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-700">
+                                    <p className="text-xs text-slate-500">Recent searches</p>
+                                    <button
+                                        onClick={() => {
+                                            setSearchHistory([]);
+                                            localStorage.removeItem('sb:search-history');
+                                        }}
+                                        className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
+                                    >Clear</button>
+                                </div>
+                                {searchHistory.map(q => (
+                                    <button
+                                        key={q}
+                                        onClick={() => setSearchQuery(q)}
+                                        className="w-full text-left px-3 py-2 hover:bg-slate-700 transition-colors flex items-center gap-2 border-b border-slate-700/40 last:border-0"
+                                    >
+                                        <span className="text-slate-500 text-xs">🕐</span>
+                                        <span className="text-sm text-slate-300">{q}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
                             <div className="absolute left-2 right-2 top-full mt-1 z-20 bg-slate-800 border border-slate-600 rounded-lg shadow-xl px-3 py-2.5">
                                 <p className="text-xs text-slate-400">No topics found for "{searchQuery}"</p>
@@ -226,9 +264,14 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
                         )}
                         {activeTopic.slug ? (
                             <>
-                                <p className="flex-1 text-sm font-medium text-slate-200 truncate" title={displayTitle}>
-                                    {displayTitle}
-                                </p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-slate-200 truncate" title={displayTitle}>
+                                        {displayTitle}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 font-mono truncate" title={activeTopic.slug}>
+                                        {activeTopic.slug}
+                                    </p>
+                                </div>
                                 <button
                                     onClick={() => setSearching(true)}
                                     title="Change topic"
