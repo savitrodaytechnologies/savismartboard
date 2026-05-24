@@ -10,45 +10,6 @@ const LEVEL_LABEL: Record<string, string> = {
     l3: 'Advanced', l4: 'Expert', l5: 'Master', l6: 'Challenge',
 };
 
-/** Wraps a KBot HTML fragment in a full document with .kbot-card styles. */
-function buildSrcDoc(fragment: string): string {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: #fff; font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; font-size: 16px; line-height: 1.6; }
-  .kbot-card { padding: 32px 40px; max-width: 100%; }
-  .kbot-card h1 { font-size: 1.8rem; font-weight: 700; color: #0f172a; margin-bottom: 16px; line-height: 1.3; }
-  .kbot-card h2 { font-size: 1.35rem; font-weight: 600; color: #1e3a5f; margin: 24px 0 10px; }
-  .kbot-card h3 { font-size: 1.1rem; font-weight: 600; color: #334155; margin: 18px 0 8px; }
-  .kbot-card p  { margin-bottom: 12px; }
-  .kbot-card ul, .kbot-card ol { padding-left: 24px; margin-bottom: 12px; }
-  .kbot-card li { margin-bottom: 6px; }
-  .kbot-card strong { font-weight: 700; }
-  .kbot-card em { font-style: italic; }
-  .kbot-card code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
-  .kbot-card pre { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; overflow-x: auto; margin-bottom: 16px; }
-  .kbot-card pre code { background: none; padding: 0; }
-  .kbot-card table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-  .kbot-card th { background: #1e3a5f; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; }
-  .kbot-card td { border: 1px solid #e2e8f0; padding: 9px 14px; vertical-align: top; }
-  .kbot-card tr:nth-child(even) td { background: #f8fafc; }
-  .kbot-card svg { max-width: 100%; height: auto; display: block; margin: 16px auto; }
-  .kbot-card math { font-size: 1.05em; }
-  .kbot-card .kbot-diagram { background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; color: #64748b; font-size: 0.85rem; margin: 16px 0; }
-  .kbot-card .kbot-diagram::before { content: '📊 Diagram: ' attr(data-key); display: block; }
-  blockquote { border-left: 4px solid #3b82f6; padding: 10px 16px; background: #eff6ff; margin: 16px 0; color: #1e3a5f; border-radius: 0 6px 6px 0; }
-  hr { border: none; border-top: 2px solid #e2e8f0; margin: 24px 0; }
-  img { max-width: 100%; height: auto; border-radius: 6px; display: block; margin: 12px auto; }
-</style>
-</head>
-<body>${fragment}</body>
-</html>`;
-}
-
 function CardList({ cards, onSelect }: { cards: CardLevelStatus[]; onSelect: (c: CardLevelStatus) => void }) {
     return (
         <div className="h-full overflow-y-auto p-3 flex flex-col gap-2">
@@ -139,7 +100,7 @@ function CardViewer({ card, onBack }: { card: CardLevelStatus; onBack: () => voi
                         }}
                     >
                         <iframe
-                            srcDoc={buildSrcDoc(rendered.html)}
+                            srcDoc={rendered.html}
                             sandbox="allow-scripts allow-same-origin"
                             style={{
                                 width: rendered.viewportWidth,
