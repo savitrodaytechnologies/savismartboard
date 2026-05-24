@@ -77,7 +77,9 @@ public sealed class KBotContentService : IKBotContentService
         var raw = JsonSerializer.Deserialize<KBotSearchResultR[]>(await resp.Content.ReadAsStringAsync(ct), _json);
         return raw?.Select(r => new KBotTopicSearchResultDto(r.Slug, r.Title, r.Board, r.Grade, r.Subject, r.ChapterTitle, r.FloorLevel, r.RelevanceScore, r.MatchReason)).ToList()
                ?? (IReadOnlyList<KBotTopicSearchResultDto>)Array.Empty<KBotTopicSearchResultDto>();
-    }(string slug, CancellationToken ct = default)
+    }
+
+    public async Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct = default)
     {
         var resp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/cards", ct);
         if (!resp.IsSuccessStatusCode) return null;
