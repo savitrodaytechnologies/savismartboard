@@ -22,6 +22,9 @@ public static class AiPromptTemplates
             ["quiz"]     = Load("SelectionTab_quiz.txt"),
         };
 
+    /// <summary>Prompt for the identify-topic vision call. Returns only a short topic name.</summary>
+    public static readonly string IdentifyTopicPrompt = Load("IdentifyTopic.txt");
+
     /// <summary>Returns the task instruction for the given lasso-tab name (solution/explain/mistakes/quiz).</summary>
     public static string SelectionTabPrompt(string tab) =>
         _selectionTabPrompts.TryGetValue(tab, out var prompt) ? prompt : tab;

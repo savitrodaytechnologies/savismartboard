@@ -9,5 +9,7 @@ export const aiService = {
     summary: (body: unknown) => api.post('/smartboard/ai/summary', body).then(r => r.data),
     homework: (body: unknown) => api.post('/smartboard/ai/homework', body).then(r => r.data),
     askSelection: (instruction: string, imageBase64: string, sessionId?: number, imageMediaType?: string) =>
-        api.post('/smartboard/ai/ask-selection', { instruction, imageBase64, sessionId, imageMediaType }).then(r => r.data),
+        api.post<{ result: string }>('/smartboard/ai/ask-selection', { instruction, imageBase64, sessionId, imageMediaType }).then(r => r.data),
+    identifyTopic: (imageBase64: string, imageMediaType?: string) =>
+        api.post<{ result: string }>('/smartboard/ai/identify-topic', { imageBase64, imageMediaType }).then(r => r.data),
 };

@@ -15,6 +15,9 @@ public interface ISmartboardAiService
     Task<AiPromptResponse> SummaryAsync(AiPromptRequest req, CancellationToken ct = default);
     Task<AiPromptResponse> HomeworkAsync(AiPromptRequest req, CancellationToken ct = default);
     Task<AiPromptResponse> AskSelectionAsync(AiSelectionRequest req, CancellationToken ct = default);
+
+    /// <summary>Vision call: returns a 2–5-word topic name extracted from a board image.</summary>
+    Task<AiPromptResponse> IdentifyTopicAsync(AiSelectionRequest req, CancellationToken ct = default);
 }
 
 public sealed class SmartboardAiService : ISmartboardAiService
@@ -45,6 +48,19 @@ public sealed class SmartboardAiService : ISmartboardAiService
 
         var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal, message, ct);
         return new AiPromptResponse(result, 0, 0m);
+    }
+
+    public async Task<AiPromptResponse> IdentifyTopicAsync(AiSelectionRequest req, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(req.ImageBase64))
+            return new AiPromptResponse(string.Empty, 0, 0m);
+
+        var message = new AiMessage(
+            AiPromptTemplates.IdentifyTopicPrompt,
+            req.ImageBase64,
+            req.ImageMediaType ?? "image/jpeg");
+        var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal, message, ct);
+        return new AiPromptResponse(result.Trim(), 0, 0m);
     }
 
     // ── Text-based prompts ───────────────────────────────────────────────────

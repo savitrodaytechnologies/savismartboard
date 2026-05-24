@@ -4,6 +4,7 @@
 // Phase 1.5: topic search/override — teacher can switch topic mid-session without restarting.
 import { useEffect, useRef, useState } from 'react';
 import { kbotContentService } from '@/services/kbotContentService';
+import { aiService } from '@/services/aiService';
 import AiAssistPanel from '@/components/canvas/AiAssistPanel';
 import ContentCardsTab from './ContentCardsTab';
 import QuestionsTab from './QuestionsTab';
@@ -30,6 +31,7 @@ interface Props {
 export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
     // Active topic — may differ from URL slug if teacher overrides mid-session
     const [activeTopic, setActiveTopic]   = useState<ActiveTopic>({ slug, title: '' });
+    const [topicHistory, setTopicHistory] = useState<ActiveTopic[]>([]);
     const [searching, setSearching]       = useState(!slug);   // auto-open if no topic
     const [searchQuery, setSearchQuery]   = useState('');
     const [searchResults, setSearchResults] = useState<KBotTopicSearchResult[]>([]);
@@ -51,6 +53,37 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
     useEffect(() => {
         if (searching) searchInputRef.current?.focus();
     }, [searching]);
+
+    // ── Auto-identify topic from lasso image ─────────────────────────────────
+    // When the teacher circles something and hits "Ask AI ✨", fire a lightweight
+    // vision call to identify the topic, then auto-select the top KBot match.
+    const activeTopicRef = useRef(activeTopic);
+    useEffect(() => { activeTopicRef.current = activeTopic; }, [activeTopic]);
+
+    useEffect(() => {
+        if (!aiQuery) return;
+        const mediaTypeMatch = aiQuery.dataUrl.match(/^data:([^;]+);base64,/);
+        const mediaType = mediaTypeMatch ? mediaTypeMatch[1] : 'image/png';
+        const base64 = aiQuery.dataUrl.slice(aiQuery.dataUrl.indexOf(',') + 1);
+
+        (async () => {
+            try {
+                const { result: topicName } = await aiService.identifyTopic(base64, mediaType);
+                if (!topicName?.trim()) return;
+                const results = await kbotContentService.searchTopics(topicName.trim());
+                if (results.length === 0) return;
+                const top = results[0];
+                const current = activeTopicRef.current;
+                // Push old topic to history before switching (skip if same topic)
+                if (current.slug && current.slug !== top.slug) {
+                    setTopicHistory(h => [current, ...h].slice(0, 8));
+                }
+                setActiveTopic({ slug: top.slug, title: top.title });
+            } catch {
+                // silent fail — don't disrupt the AI tab
+            }
+        })();
+    }, [aiQuery?.timestamp]);
 
     // Debounced search — fires 350 ms after last keystroke
     useEffect(() => {
@@ -76,6 +109,10 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
     }, [aiQuery]);
 
     function selectTopic(result: KBotTopicSearchResult) {
+        // Push current to history before switching
+        if (activeTopic.slug && activeTopic.slug !== result.slug) {
+            setTopicHistory(h => [activeTopic, ...h].slice(0, 8));
+        }
         setActiveTopic({ slug: result.slug, title: result.title });
         setSearching(false);
         setSearchQuery('');
@@ -84,6 +121,15 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
         setCheckedIds(new Set());
         setCheckedQuestions([]);
         setActiveTab('content');
+    }
+
+    function goBack() {
+        if (topicHistory.length === 0) return;
+        const [prev, ...rest] = topicHistory;
+        setTopicHistory(rest);
+        setActiveTopic(prev);
+        setCheckedIds(new Set());
+        setCheckedQuestions([]);
     }
 
     function cancelSearch() {
@@ -167,7 +213,17 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
                     </div>
                 ) : (
                     /* Topic display mode */
-                    <div className="flex items-center gap-2 px-3 py-2">
+                    <div className="flex items-center gap-1.5 px-3 py-2">
+                        {/* Back button — shown when there's history to navigate */}
+                        {topicHistory.length > 0 && (
+                            <button
+                                onClick={goBack}
+                                title={`Back to: ${topicHistory[0].title || topicHistory[0].slug}`}
+                                className="flex-shrink-0 text-slate-500 hover:text-slate-200 text-sm transition-colors px-0.5"
+                            >
+                                ←
+                            </button>
+                        )}
                         {activeTopic.slug ? (
                             <>
                                 <p className="flex-1 text-sm font-medium text-slate-200 truncate" title={displayTitle}>
