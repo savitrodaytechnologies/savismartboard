@@ -10,8 +10,11 @@ public interface IKBotContentService
     /// <summary>GET /topics/search?q={query} — ranked topic search across the full KBot catalogue.</summary>
     Task<IReadOnlyList<KBotTopicSearchResultDto>> SearchTopicsAsync(string query, CancellationToken ct = default);
 
-    /// <summary>GET /topic/{slug}/cards — card level availability (L0–L6) for a topic.</summary>
-    Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct = default);
+    /// <summary>GET /topic/{slug}/cards — card level availability (L0–L6) for a topic. Locale params default to en/in.</summary>
+    Task<TopicCardsDto?> GetTopicCardsAsync(string slug, string language = "en", string country = "in", string? state = null, CancellationToken ct = default);
+
+    /// <summary>GET /topic/{slug}/card/{level} — rendered HTML for a specific card level. language/country/state localise the content.</summary>
+    Task<RenderedCardDto?> GetCardByLevelAsync(string slug, string level, string language = "en", string country = "in", string? state = null, CancellationToken ct = default);
 
     /// <summary>GET /cards/{card_id}/versions — version history for a card family.</summary>
     Task<IReadOnlyList<ContentCardVersionDto>> GetVersionsAsync(long cardId, CancellationToken ct = default);
@@ -47,6 +50,14 @@ public sealed class KBotContentService : IKBotContentService
         [property: JsonPropertyName("is_current")] bool IsCurrent,
         [property: JsonPropertyName("is_published")] bool IsPublished);
 
+    private sealed record KBotCardByLevelR(
+        [property: JsonPropertyName("html")]             string Html,
+        [property: JsonPropertyName("viewport_width")]   int ViewportWidth,
+        [property: JsonPropertyName("viewport_height")]  int ViewportHeight,
+        [property: JsonPropertyName("card_id")]          long? CardId,
+        [property: JsonPropertyName("version_id")]       long? VersionId,
+        [property: JsonPropertyName("etag")]             string? ETag);
+
     private sealed record KBotRenderR(
         [property: JsonPropertyName("card_id")] long CardId,
         [property: JsonPropertyName("version_id")] long VersionId,
@@ -79,9 +90,11 @@ public sealed class KBotContentService : IKBotContentService
                ?? (IReadOnlyList<KBotTopicSearchResultDto>)Array.Empty<KBotTopicSearchResultDto>();
     }
 
-    public async Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct = default)
+    public async Task<TopicCardsDto?> GetTopicCardsAsync(string slug, string language = "en", string country = "in", string? state = null, CancellationToken ct = default)
     {
-        var resp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/cards", ct);
+        var qs = $"language={Uri.EscapeDataString(language)}&country={Uri.EscapeDataString(country)}";
+        if (state is not null) qs += $"&state={Uri.EscapeDataString(state)}";
+        var resp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/cards?{qs}", ct);
         if (!resp.IsSuccessStatusCode) return null;
         var raw = JsonSerializer.Deserialize<KBotTopicCardsR>(await resp.Content.ReadAsStringAsync(ct), _json);
         if (raw is null) return null;
@@ -97,6 +110,17 @@ public sealed class KBotContentService : IKBotContentService
         }).ToList();
 
         return new TopicCardsDto(raw.Slug, raw.Title, cards);
+    }
+
+    public async Task<RenderedCardDto?> GetCardByLevelAsync(string slug, string level, string language = "en", string country = "in", string? state = null, CancellationToken ct = default)
+    {
+        var qs = $"language={Uri.EscapeDataString(language)}&country={Uri.EscapeDataString(country)}";
+        if (state is not null) qs += $"&state={Uri.EscapeDataString(state)}";
+        var resp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/card/{Uri.EscapeDataString(level)}?{qs}", ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        var raw = JsonSerializer.Deserialize<KBotCardByLevelR>(await resp.Content.ReadAsStringAsync(ct), _json);
+        if (raw is null) return null;
+        return new RenderedCardDto(raw.CardId ?? 0, raw.VersionId ?? 0, raw.Html, raw.ViewportWidth, raw.ViewportHeight, raw.ETag ?? string.Empty);
     }
 
     public async Task<IReadOnlyList<ContentCardVersionDto>> GetVersionsAsync(long cardId, CancellationToken ct = default)

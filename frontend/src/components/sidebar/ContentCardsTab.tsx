@@ -36,7 +36,7 @@ function CardList({ cards, onSelect }: { cards: CardLevelStatus[]; onSelect: (c:
     );
 }
 
-function CardViewer({ card, onBack }: { card: CardLevelStatus; onBack: () => void }) {
+function CardViewer({ slug, card, onBack }: { slug: string; card: CardLevelStatus; onBack: () => void }) {
     const [rendered, setRendered] = useState<RenderedCard | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -44,7 +44,7 @@ function CardViewer({ card, onBack }: { card: CardLevelStatus; onBack: () => voi
     useEffect(() => {
         setLoading(true);
         setError(false);
-        kbotContentService.render(card.cardId!, card.currentVersionId ?? undefined)
+        kbotContentService.cardByLevel(slug, card.level)
             .then(r => setRendered(r))
             .catch(() => setError(true))
             .finally(() => setLoading(false));
@@ -116,7 +116,7 @@ export default function ContentCardsTab({ slug }: Props) {
     if (error)   return <div className="p-4 text-sm text-rose-400">Failed to load content cards.</div>;
     if (!cards.length) return <div className="p-4 text-sm text-slate-400">No published cards for this topic yet.</div>;
 
-    if (selected) return <CardViewer card={selected} onBack={() => setSelected(null)} />;
+    if (selected) return <CardViewer slug={slug} card={selected} onBack={() => setSelected(null)} />;
 
     return <CardList cards={cards} onSelect={setSelected} />;
 }

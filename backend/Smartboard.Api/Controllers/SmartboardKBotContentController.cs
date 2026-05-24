@@ -13,10 +13,30 @@ public sealed class SmartboardKBotContentController : ControllerBase
     public SmartboardKBotContentController(IKBotContentService svc) => _svc = svc;
 
     [HttpGet("topics/{slug}/cards")]
-    public async Task<IActionResult> GetCards(string slug, CancellationToken ct)
+    public async Task<IActionResult> GetCards(
+        string slug,
+        [FromQuery] string language = "en",
+        [FromQuery] string country = "in",
+        [FromQuery] string? state = null,
+        CancellationToken ct = default)
     {
-        var result = await _svc.GetTopicCardsAsync(slug, ct);
+        var result = await _svc.GetTopicCardsAsync(slug, language, country, state, ct);
         return result is not null ? Ok(result) : NotFound();
+    }
+
+    [HttpGet("topics/{slug}/card/{level}")]
+    public async Task<IActionResult> GetCardByLevel(
+        string slug,
+        string level,
+        [FromQuery] string language = "en",
+        [FromQuery] string country = "in",
+        [FromQuery] string? state = null,
+        CancellationToken ct = default)
+    {
+        var result = await _svc.GetCardByLevelAsync(slug, level, language, country, state, ct);
+        if (result is null) return NotFound();
+        if (!string.IsNullOrEmpty(result.ETag)) Response.Headers.ETag = result.ETag;
+        return Ok(result);
     }
 
     [HttpGet("topics/search")]
