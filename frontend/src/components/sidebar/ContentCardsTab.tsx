@@ -1,5 +1,5 @@
 // Owner: Parivesh — Phase 1 Teaching Sidebar
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { kbotContentService } from '@/services/kbotContentService';
 import type { CardLevelStatus, RenderedCard } from '@/types';
 
@@ -40,8 +40,6 @@ function CardViewer({ card, onBack }: { card: CardLevelStatus; onBack: () => voi
     const [rendered, setRendered] = useState<RenderedCard | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [scale, setScale] = useState(1);
 
     useEffect(() => {
         setLoading(true);
@@ -51,17 +49,6 @@ function CardViewer({ card, onBack }: { card: CardLevelStatus; onBack: () => voi
             .catch(() => setError(true))
             .finally(() => setLoading(false));
     }, [card.cardId, card.currentVersionId]);
-
-    // Scale iframe to fit container width
-    useEffect(() => {
-        if (!rendered || !containerRef.current) return;
-        const obs = new ResizeObserver(entries => {
-            const w = entries[0].contentRect.width;
-            if (rendered.viewportWidth > 0) setScale(w / rendered.viewportWidth);
-        });
-        obs.observe(containerRef.current);
-        return () => obs.disconnect();
-    }, [rendered]);
 
     return (
         <div className="flex flex-col h-full">
@@ -78,8 +65,8 @@ function CardViewer({ card, onBack }: { card: CardLevelStatus; onBack: () => voi
                 </span>
             </div>
 
-            {/* Content */}
-            <div ref={containerRef} className="flex-1 overflow-y-auto bg-white">
+            {/* Content — KBot HTML is self-contained, iframe fills full width */}
+            <div className="flex-1 overflow-hidden bg-white">
                 {loading && (
                     <div className="flex items-center justify-center h-full text-slate-400 text-sm bg-slate-900">
                         Loading…
@@ -91,26 +78,12 @@ function CardViewer({ card, onBack }: { card: CardLevelStatus; onBack: () => voi
                     </div>
                 )}
                 {rendered && (
-                    <div
-                        style={{
-                            width: rendered.viewportWidth,
-                            height: rendered.viewportHeight,
-                            transform: `scale(${scale})`,
-                            transformOrigin: 'top left',
-                        }}
-                    >
-                        <iframe
-                            srcDoc={rendered.html}
-                            sandbox="allow-scripts allow-same-origin"
-                            style={{
-                                width: rendered.viewportWidth,
-                                height: rendered.viewportHeight,
-                                border: 'none',
-                                display: 'block',
-                            }}
-                            title={`Card ${card.level}`}
-                        />
-                    </div>
+                    <iframe
+                        srcDoc={rendered.html}
+                        sandbox="allow-scripts allow-same-origin"
+                        style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                        title={`Card ${card.level}`}
+                    />
                 )}
             </div>
         </div>
