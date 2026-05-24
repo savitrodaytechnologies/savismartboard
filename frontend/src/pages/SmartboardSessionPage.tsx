@@ -1,17 +1,19 @@
 // Owner: Parivesh (Smartboard core)
 import { useCallback, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Annotation } from '@/types';
 import { useSmartboardSession } from '@/hooks/useSmartboardSession';
 import WhiteboardCanvas from '@/components/canvas/WhiteboardCanvas';
-import AiAssistPanel from '@/components/canvas/AiAssistPanel';
+import TeachingSidebar from '@/components/sidebar/TeachingSidebar';
 import CanvasToolbar, { type ToolState } from '@/components/canvas/CanvasToolbar';
 import PageStrip from '@/components/canvas/PageStrip';
 
 export default function SmartboardSessionPage() {
     const { sessionId } = useParams<{ sessionId: string }>();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const id = sessionId ?? '';
+    const slug = searchParams.get('slug') ?? '';
 
     const {
         pages,
@@ -197,7 +199,7 @@ export default function SmartboardSessionPage() {
                     <button
                         onMouseDown={e => e.stopPropagation()}
                         onClick={e => { e.stopPropagation(); setPanelOpen(false); }}
-                        title="Collapse AI panel"
+                        title="Collapse sidebar"
                         className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-5 h-9 rounded bg-slate-700 group-hover:bg-blue-700 text-slate-300 text-xs shadow"
                     >
                         ▶
@@ -207,21 +209,21 @@ export default function SmartboardSessionPage() {
                 </div>
             )}
 
-            {/* ── Right: AI Assist Panel ───────────────────────────────────── */}
+            {/* ── Right: Teaching Sidebar ──────────────────────────────────── */}
             {panelOpen ? (
                 <div className="flex-shrink-0 overflow-hidden" style={{ width: panelWidth }}>
-                    <AiAssistPanel query={aiQuery} sessionId={Number(id) || undefined} />
+                    <TeachingSidebar slug={slug} aiQuery={aiQuery} sessionId={Number(id) || undefined} />
                 </div>
             ) : (
                 /* Collapsed: thin expand tab on the right edge */
                 <button
                     onClick={() => setPanelOpen(true)}
-                    title="Expand AI panel"
+                    title="Expand sidebar"
                     className="flex-shrink-0 flex flex-col items-center justify-center gap-2 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors border-l border-slate-700"
                     style={{ width: 28 }}
                 >
                     <span className="text-sm">◀</span>
-                    <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 10, letterSpacing: 1 }}>AI PANEL</span>
+                    <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 10, letterSpacing: 1 }}>SIDEBAR</span>
                 </button>
             )}
 

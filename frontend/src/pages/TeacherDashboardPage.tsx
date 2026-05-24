@@ -206,7 +206,8 @@ export default function TeacherDashboardPage() {
                 topicId: selectedTopic?.topicId ?? null,
                 sessionTitle: title,
             });
-            navigate(`/session/${sid}`);
+            const slug = selectedTopic?.slug ?? '';
+            navigate(`/session/${sid}${slug ? `?slug=${encodeURIComponent(slug)}` : ''}`);
         }
         finally {
             setStarting(false);

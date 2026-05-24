@@ -1,7 +1,7 @@
 # Savischools Smartboard — Detailed Design Document
 
-> Version: 1.5  
-> Date: 17 May 2026  
+> Version: 2.0  
+> Date: 24 May 2026  
 > Status: In development — see §16 for current implementation status  
 > Owners: Parivesh (Smartboard Core) · Manohar (Savischools Integration) · Mukesh (KBot Integration)
 
@@ -277,7 +277,7 @@ Even though v1 is online-only, the following choices keep offline cheap to add l
 | M3 | Whiteboard + annotation layer | **Parivesh** | — | ✅ Complete — pen/highlighter/shapes/text/eraser/smart-shape/undo/redo/pages |
 | M4 | Question bank + solved card classroom mode | **Mukesh** | Parivesh (board insert) | 🟡 Backend complete; hide/reveal + insert-into-board UI not built |
 | M5 | Session save / export / share | **Parivesh** | Manohar (portal share) | 🟡 Session CRUD + auto-save + rename + delete + view-ended working; export + share are stubs |
-| M6 | Limited AI assistant + production hardening | **Parivesh** | Manohar + Mukesh (grounding data) | 🔴 Not started — `SmartboardAiService` all stubs, no `AiAssistantPanel` |
+| M6 | Limited AI assistant + production hardening | **Parivesh** | Manohar + Mukesh (grounding data) | 🟡 Partial — `AiAssistPanel` working (4 tabs, real AI calls, markdown rendering); export/share stubs remain; AI grounding (RAG from KBot snippets) not yet wired |
 
 Each milestone has its own acceptance criteria — see §11.
 
@@ -533,6 +533,36 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 
 ---
 
+### 16.0b Recent changes — 21–24 May 2026 sessions
+
+#### Sign-in and dev-auth fixes
+| Change | Detail |
+|---|---|
+| **DevController route fix** | `DevController` route was `api/dev` — prefix-stripped by the `/api/v1/` baseURL change, breaking the dev token endpoint. Changed to `api/v1/dev`. Commit `794a76d`. |
+| **Vite proxy port fix** | Vite proxy target was pointing to the wrong local port; corrected to `http://localhost:5105`. |
+
+#### EC2 502 fix (Kestrel binding)
+| Change | Detail |
+|---|---|
+| **Kestrel `0.0.0.0` binding** | EC2 had been provisioned with `ASPNETCORE_URLS=http://localhost:5000`. Docker nginx (`saviknowledgebot-nginx-1`) cannot reach `localhost` from inside the container — it needs `0.0.0.0`. Fixed via SSM + updated `smartboard-api.service`. Commit `c43dd0a`. See §18.9 for full troubleshooting steps. |
+
+#### Whiteboard text tool fixes
+| Change | Detail |
+|---|---|
+| **Text object cloning on every click** | Text tool was creating a new object on every canvas click instead of editing the existing one. Fixed by checking for existing text at click position before creating new. Commit `80fa23d`. |
+| **Focus timing** | Text input focus fired before the Konva transformer finished positioning, placing the cursor in the wrong spot. Fixed with a `setTimeout` delay. Commit `6783569`. |
+| **Auto-revert to Select** | After confirming a text placement (Enter or click-away), the tool now automatically reverts to the Select tool. Commit `6783569`. |
+
+#### AI Assist Panel — now fully working
+| Change | Detail |
+|---|---|
+| **Real AI calls** | `SmartboardAiService.AskSelectionAsync` now makes actual AI calls via `HybridAiClient` — vision calls go to Anthropic Claude; text-only calls go to DeepSeek. Commits `6271448`, `ff99c46`. |
+| **Unicode math fix** | AI was writing "x squared" in words rather than x². Updated `AiPromptGlobal.txt` + added explicit Unicode math instructions to each `SelectionTab_*.txt` prompt file. Commit `ff99c46`. |
+| **`react-markdown` rendering** | All 4 tabs now render AI responses as markdown via `react-markdown` + `remark-gfm` + `@tailwindcss/typography`. Equations render correctly as Unicode (² √ → ±). Commit `6271448`. |
+| **Prompt template system** | All AI prompts moved from C# inline strings to plain-text `.txt` embedded resource files (`Prompts/` folder). `AiPromptTemplates.cs` loads them at startup. No C# changes needed to edit prompts. Commit `a3fe00b`. See §17.8. |
+
+---
+
 ### 16.1 Infrastructure
 | Item | Status | Notes |
 |---|---|---|
@@ -589,7 +619,7 @@ Ai__Providers__anthropic__ApiKey=sk-ant-...
 |---|---|---|
 | `TeacherDashboardPage` | ✅ Working | Class → Subject → Topic picker, recent sessions, blank board start, inline rename (✏️), delete with exclusion list, view ended sessions |
 | `TopicTeachingPage` | 🟡 Partial | Card list + question list + preview render; no question hide/reveal or insert-into-board from question panel |
-| `SmartboardSessionPage` | 🟡 Partial | Canvas + toolbar + undo/redo + page strip + KBot card background re-hydration + read-only view for ended sessions; no AI panel |
+| `SmartboardSessionPage` | 🟡 Partial | Canvas + toolbar + undo/redo + page strip + KBot card background re-hydration + read-only view for ended sessions; AI Assist Panel working (lasso → Ask AI ✨ → 4 tabs); Teaching Sidebar expansion planned (§19) |
 
 ### 16.5 Frontend components
 | Component | Status | Notes |
@@ -599,7 +629,7 @@ Ai__Providers__anthropic__ApiKey=sk-ant-...
 | `PageStrip` | ✅ Complete | Thumbnail strip, add/delete pages |
 | `OfflineIndicator` | ✅ Complete | Pending sync badge |
 | `shapeDetector.ts` | ✅ Complete | `tryConvertToShape()` — Douglas-Peucker simplification, corner detection, triangle/rect/circle/line classification, measurement labels |
-| `AiAssistantPanel` | 🔴 Not built | M6 |
+| `AiAssistPanel` | ✅ Complete | 4 tabs (Solution/Explain/Mistakes/Quiz); lasso trigger → real AI calls (DeepSeek text + Claude vision); `react-markdown` + `remark-gfm` markdown rendering; Unicode math; prompt files in `Prompts/` folder |
 | `QuestionViewer` / `SolvedCardViewer` | 🔴 Not built | M4 classroom mode UI |
 
 ### 16.6 Known issues to fix before production
@@ -607,13 +637,15 @@ Ai__Providers__anthropic__ApiKey=sk-ant-...
 2. `SmartboardContextService` — swap KBot proxy for real Savischools class/subject/topic data.
 3. M4 classroom mode — question hide/reveal UI + insert solved card into board.
 4. M5 export — PDF generation pipeline (server-side preferred; `pdf-lib` client fallback).
-5. AI Assist Panel — plug in real AI provider; `SmartboardAiService.AskSelectionAsync` currently stubs response.
+5. M5 share — signed URL delivery to Savischools student/parent portal.
+6. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
+7. S3 cleanup on session delete — `DeleteSessionAsync` currently only removes SQL rows; S3 objects for deleted sessions are not yet purged.
 
 ---
 
 ## 17. AI Assist Panel (Dual Board Feature)
 
-> Added: 17 May 2026. Status: frontend + API shape implemented; AI is stubbed.
+> Added: 17 May 2026. Status: **fully working** as of 24 May 2026 (4 tabs, real AI calls, markdown rendering).
 
 ### 17.1 Layout
 
@@ -678,10 +710,9 @@ The image is a JPEG data URL (`data:image/jpeg;base64,...`) of the circled regio
 | Interface + stub | `SmartboardAiService.cs` | Added `AskSelectionAsync`; stub returns placeholder |
 | Controller | `SmartboardAiController.cs` | Added `POST ask-selection`; changed to `[AllowAnonymous]` (temporary, same as all other controllers) |
 
-### 17.7 Limitations (current stub phase)
-- AI response is a stub: `[ask-selection] {instruction}` — no real AI call made
-- Image is captured from the Konva canvas only (annotations layer); KBot HTML background is a separate DOM element and is **not** included in the capture. This means if the teacher circles a KBot card background, only their annotations over it are captured.  Future: use `html2canvas` or a server-side screen capture to include the full visible area.
-- Image size is not compressed before sending; very large selections (full canvas) may produce large payloads. TODO: cap at 800×600 px client-side before encoding.
+### 17.7 Current Limitations
+- **KBot background not captured:** Image is captured from the Konva canvas only (annotations layer). KBot HTML background is a separate DOM element and is **not** included in the AI image. If the teacher lassos over a KBot card, only their annotations are captured — not the card content. Future fix: use `html2canvas` or a server-side screen capture.
+- **Image size not compressed:** Very large lasso selections may produce large base64 payloads. TODO: cap at 800×600 px client-side before encoding.
 
 ### 17.8 Prompt Template System
 
@@ -718,10 +749,6 @@ The `.txt` files are declared as **EmbeddedResource** in `Smartboard.Api.csproj`
 1. Create `Prompts/SelectionTab_<name>.txt` with the instruction text.
 2. Add `["<name>"] = Load("SelectionTab_<name>.txt")` to the dictionary in `AiPromptTemplates.cs`.
 3. Rebuild — the file is embedded automatically by the wildcard glob.
-
-5. M5 share — signed URL delivery to Savischools student/parent portal.
-6. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
-7. S3 cleanup on session delete — `DeleteSessionAsync` currently only removes SQL rows; S3 objects for deleted sessions are not yet purged.
 
 ---
 
@@ -1048,6 +1075,147 @@ journalctl -u smartboard-api -n 30 --no-pager
 
 ---
 
+## 19. Teaching Sidebar — Expanded Right Panel Design
+
+> Added: 24 May 2026. Status: **Designed; not yet built.** Implementation starts at Phase 1.  
+> Based on prototype `manoj0525.html` — a complete 23-screen lesson mockup (Grade 10 NCERT Physics, Laws of Reflection), authored by Manohar.
+
+### 19.1 Vision
+
+The right 30% panel evolves from a single AI Assist tool (triggered only by lasso selection) into a **Teaching Sidebar** — a live, always-active teaching co-pilot that pre-loads topic content, tracks lesson progress, and surfaces the right card at the right moment.
+
+Three key principles from the prototype:
+
+1. **The right panel is alive before the teacher writes a word** — pre-loaded with topic-relevant cards from KBot on session start.
+2. **The system knows where the lesson is** — a 7-stop journey tracker lets the teacher and the right panel stay in sync.
+3. **AI is invisible** — content is surfaced as *cards*, not as a chat interface; the lasso AI Assist (§17) is one of four tabs, not the whole panel.
+
+---
+
+### 19.2 The 7-Stop Lesson Journey
+
+The lesson follows a structured 7-stop journey. Journey state lives in React client state. Whether it is also persisted to DB is an open question (§19.6 Q1).
+
+Each stop has a state: `ghost` (not yet reached) → `recommended` (next up) → `active` (current) → `active-repair` (repair card in use) → `done` (completed).
+
+| Stop # | Name | Teacher action on canvas | Right feed cards |
+|---|---|---|---|
+| 1 | Hook | Show relatable story card, collect student examples | 3 pre-loaded cards: local / national / universal example |
+| 2 | Anchor | Everyone-can-answer question (class vote) | Hint card, expected answer, "next stop" recommendation |
+| 3 | Concept | Step-by-step diagram build | Scaffold cards (one per build step), "next reveal" prompt |
+| 4 | Proof | Visual / dynamic proof, angle table | Prediction prompt, observe card, pattern summary |
+| 5 | Try It | Guided practice problem | Step-scaffold (step 1 / 2 / 3), "answer hidden" card |
+| 6 | Board | Student at board with hint ladder | Hint ladder (teacher reveals hints one by one) |
+| 7 | Close | Mastery check, recap, Class Win card | 3 mastery questions + expected answers, Class Win card |
+
+---
+
+### 19.3 Tab Structure
+
+```
+┌──────────────────────────────────┬──────────────────────────────────────────┐
+│                                  │  📚 Content │ ❓ Questions │ 📝 Quiz │ 🧠 AI │
+│   WhiteboardCanvas (70%)         ├──────────────────────────────────────────┤
+│                                  │  [ Journey dots: ①②③④⑤⑥⑦ ]             │
+│                                  │  ────────────────────────────────────    │
+│                                  │  [ Feed card  (active, teal) ]           │
+│                                  │  [ Feed card  (scaffold, blue) ]         │
+│                                  │  [ Feed card  (dimmed / ghost) ]         │
+│                                  │  ...                                     │
+│                                  │  [ Next stop → recommendation (green) ]  │
+└──────────────────────────────────┴──────────────────────────────────────────┘
+```
+
+| Tab | Primary data source | Key teacher actions |
+|---|---|---|
+| 📚 Content Cards | `kbotContentService.topicCards(slug)` → `SmartboardKBotContentController` | Preview card; "Add to board" (creates new canvas page) |
+| ❓ Questions | `kbotQuestionService.list(slug)` → `SmartboardQuestionController` | Difficulty filter (All / Easy / Medium / Hard); checkbox to mark for Quiz tab |
+| 📝 Quiz | Checked questions from Questions tab — client state only, no backend needed | One question at a time; Prev / Next; "Show Answer" (panel-only reveal) |
+| 🧠 AI Assist | Lasso → `aiService.askSelection` → `SmartboardAiController` | 4 sub-tabs (Solution / Explain / Mistakes / Quiz); auto-activates on "Ask AI ✨" |
+
+---
+
+### 19.4 Card Types (right panel feed)
+
+| Card type | Accent colour | When it appears |
+|---|---|---|
+| Hook | Teal | Pre-loaded at session start; Stop 1 |
+| Scaffold / step | Blue (active) | Teacher advances to Stop 3 (Concept) or Stop 5 (Try It) |
+| Next stop recommendation | Green | Bottom of feed at all times |
+| Repair | Orange | Teacher manually triggers at any stop; journey dot turns `active-repair` |
+| Hint ladder | Purple | Stop 6 (Student at Board); teacher taps "Reveal next hint" one at a time |
+| Mastery check | Gold | Stop 7 |
+| Class Win | Gold-to-green gradient | Stop 7 Close |
+| Ghost (future stops) | Greyed-out | Visible but dimmed until the stop becomes active |
+
+Cards **accumulate** in the feed as the lesson progresses — old cards dim but do not disappear. Scrolling up reveals the full lesson history.
+
+---
+
+### 19.5 Card-to-Canvas Interactions
+
+| Interaction | Trigger | Result |
+|---|---|---|
+| Add to board (content card) | "Add to board" button in Content Cards tab | New canvas page with KBot HTML card as background |
+| Write on board (question) | "Write on board" button in Questions tab | Question text inserted as canvas text annotation at page centre |
+| Show on board (quiz answer) | "Show Answer" in Quiz tab | Panel-only reveal — or canvas (open question §19.6 Q3) |
+| Drag card to canvas | Stretch goal — **post-MVP** | Card placed inline on current canvas page |
+
+---
+
+### 19.6 Open Design Questions
+
+Resolve before coding begins:
+
+| # | Question | Options |
+|---|---|---|
+| Q1 | **Journey state persistence** | Client-only (lost on refresh) vs saved to `SmartboardSession` in DB |
+| Q2 | **Hook card source** | KBot content cards at lowest difficulty level, OR AI-generated one-liners (`POST /api/v1/smartboard/ai/hook-cards`), OR both |
+| Q3 | **Quiz answer reveal scope** | Panel-only vs also push answer text to canvas |
+| Q4 | **Empty state** | If session has no topic (blank board), show topic search OR "Select a topic from the dashboard first" |
+| Q5 | **Repair card source** | Static per-topic misconception library (new DB table + migration), OR teacher pulls from KBot content cards, OR AI-generated on demand via new prompt |
+
+---
+
+### 19.7 Backend Changes Required
+
+#### Phase 1–6 (sidebar + journey + interactive cards)
+No new backend endpoints required. All existing services are ready:
+
+| UI feature | Existing backend | Status |
+|---|---|---|
+| Content Cards tab | `SmartboardKBotContentController` + `kbotContentService` | ✅ Ready |
+| Questions tab | `SmartboardQuestionController` + `kbotQuestionService` | ✅ Ready |
+| Quiz tab | Client state only | No backend needed |
+| AI Assist tab | `SmartboardAiController` + `aiService` | ✅ Ready |
+| Hook cards (if from KBot) | `kbotContentService.topicCards` | ✅ Ready |
+
+#### Phase 7 additions (only if design decisions require them)
+| Addition | Trigger condition |
+|---|---|
+| `POST /api/v1/smartboard/ai/hook-cards` — AI-generate hook card one-liners + `Prompts/HookCards.txt` | Only if Q2 decides hook cards are AI-generated and topic has no KBot cards |
+| `smartboard_repair_cards` table + endpoint | Only if Q5 decides repair cards are a static per-topic library |
+| `Prompts/RepairCard.txt` + new AI endpoint | Only if Q5 decides repair cards are AI-generated |
+| `POST /api/v1/smartboard/sessions/{id}/journey` — persist stop state | Only if Q1 decides journey state is persisted to DB |
+
+---
+
+### 19.8 Implementation Roadmap
+
+| Phase | Deliverable | Key files to create / modify |
+|---|---|---|
+| **Phase 0** | Design decisions resolved (Q1–Q5 above) | — discussion only |
+| **Phase 1** | 4-tab Teaching Sidebar shell; Content Cards, Questions, Quiz tabs working | New: `TeachingSidebar.tsx`, `ContentCardsTab.tsx`, `QuestionsTab.tsx`, `QuizTab.tsx`; modify: `SmartboardSessionPage.tsx` |
+| **Phase 2** | Journey tracker (7 dots, teacher-controlled stops) | New: `JourneyDots.tsx`; journey state added to `SmartboardSessionPage.tsx` |
+| **Phase 3** | Always-active right panel (pre-loaded feed, per-stop card logic) | New: `FeedCardList.tsx`, `FeedCard.tsx`; session-start hooks |
+| **Phase 4** | Repair cards, hint ladder (Stop 6), mastery check (Stop 7) | New card-type components; optional backend (§19.7 Phase 7) |
+| **Phase 5** | Card-to-canvas interactions ("Add to board", "Write on board") | Modify: `WhiteboardCanvas.tsx` (callback API); wire sidebar tabs |
+| **Phase 6** | Closure — Class Win card, scrollable session history | Feed accumulation state; Class Win card component |
+| **Phase 7** | Backend additions (only if Phase 0 decisions require them) | New controller endpoints; optional DB migration |
+| **Phase 8** | Collapsible sidebar, keyboard navigation, pre-fetch optimisation, EC2 deploy | All |
+
+---
+
 ## Appendix A — Smartboard Database Schemas (reference)
 
 > All tables include `SchoolId` for tenant isolation.
@@ -1095,7 +1263,7 @@ frontend/
       whiteboard/WhiteboardToolbar.tsx                               (Parivesh)
       whiteboard/AnnotationLayer.tsx                                 (Parivesh)
       whiteboard/PageNavigator.tsx                                   (Parivesh)
-      ai/AiAssistantPanel.tsx                                        (Parivesh)
+      ai/AiAssistPanel.tsx                                           (Parivesh)
       sharing/ShareToPortalDialog.tsx                                (Manohar)
     services/
       savischoolsContextService.ts                                   (Manohar)
