@@ -1,0 +1,2 @@
+Look at the problem or work shown in the image. Provide a clear, step-by-step solution.
+Write all powers and math symbols using Unicode (e.g. x², y³, √, ≠) — never write 'x squared' or 'x cubed' in words.

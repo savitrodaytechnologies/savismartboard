@@ -682,6 +682,43 @@ The image is a JPEG data URL (`data:image/jpeg;base64,...`) of the circled regio
 - AI response is a stub: `[ask-selection] {instruction}` — no real AI call made
 - Image is captured from the Konva canvas only (annotations layer); KBot HTML background is a separate DOM element and is **not** included in the capture. This means if the teacher circles a KBot card background, only their annotations over it are captured.  Future: use `html2canvas` or a server-side screen capture to include the full visible area.
 - Image size is not compressed before sending; very large selections (full canvas) may produce large payloads. TODO: cap at 800×600 px client-side before encoding.
+
+### 17.8 Prompt Template System
+
+> Added: 21 May 2026.
+
+All AI prompts are stored as **plain text files** under `backend/Smartboard.Api/Prompts/`. To change what the AI says, edit the `.txt` file directly — no C# changes needed.
+
+#### Files
+
+| File | Purpose |
+|---|---|
+| `AiPromptGlobal.txt` | Global system prompt injected into **every** AI call. Sets persona (CBSE K-12 assistant), markdown formatting rules, and Unicode math notation convention. |
+| `SelectionTab_solution.txt` | Task instruction for the **Solution** lasso tab |
+| `SelectionTab_explain.txt` | Task instruction for the **Explain** lasso tab |
+| `SelectionTab_mistakes.txt` | Task instruction for the **Mistakes** lasso tab |
+| `SelectionTab_quiz.txt` | Task instruction for the **Quiz** lasso tab |
+
+#### How it works
+
+The `.txt` files are declared as **EmbeddedResource** in `Smartboard.Api.csproj`:
+
+```xml
+<ItemGroup>
+  <EmbeddedResource Include="Prompts\*.txt" />
+</ItemGroup>
+```
+
+`AiPromptTemplates.cs` loads them at startup via `Assembly.GetManifestResourceStream`. The resource name follows the convention `Smartboard.Api.Prompts.<filename>`.
+
+`SmartboardAiService` references `AiPromptTemplates.AiPromptGlobal` (system prompt) and `AiPromptTemplates.SelectionTabPrompt(tab)` (per-tab task instruction). There are no hardcoded prompt strings in any service class.
+
+#### To add a new tab
+
+1. Create `Prompts/SelectionTab_<name>.txt` with the instruction text.
+2. Add `["<name>"] = Load("SelectionTab_<name>.txt")` to the dictionary in `AiPromptTemplates.cs`.
+3. Rebuild — the file is embedded automatically by the wildcard glob.
+
 5. M5 share — signed URL delivery to Savischools student/parent portal.
 6. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
 7. S3 cleanup on session delete — `DeleteSessionAsync` currently only removes SQL rows; S3 objects for deleted sessions are not yet purged.

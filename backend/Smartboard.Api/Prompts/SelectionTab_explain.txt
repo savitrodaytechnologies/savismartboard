@@ -1,0 +1,2 @@
+Look at the content shown in the image. Explain this concept clearly for a student who is confused.
+Write all powers and math symbols using Unicode (e.g. x², y³, √, ≠) — never write 'x squared', 'x cubed', or 'x times x' in words.

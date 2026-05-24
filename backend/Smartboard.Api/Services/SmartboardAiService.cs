@@ -1,6 +1,7 @@
 using Smartboard.Api.Auth;
 using Smartboard.Api.HttpClients;
 using Smartboard.Api.Models.Dto;
+using Smartboard.Api.Prompts;
 using Smartboard.Api.Repositories;
 
 namespace Smartboard.Api.Services;
@@ -22,22 +23,8 @@ public sealed class SmartboardAiService : ISmartboardAiService
     private readonly ISmartboardUsageLogRepository _log;
     private readonly ITeacherContextAccessor _teacher;
 
-    // Shared system prompt for all calls
-    private const string SystemPrompt =
-        "You are an expert K-12 teaching assistant for Indian schools following the CBSE curriculum. " +
-        "Be concise, accurate, and appropriate for the grade level. " +
-        "Format your response using markdown: use **bold** for key terms and headings, numbered or bulleted lists for steps. " +
-        "Write mathematical expressions using Unicode characters (e.g. x\u00b2, y\u00b3, \u00bd, \u221a, \u03c0, \u2260, \u2264, \u2265) " +
-        "\u2014 do NOT use LaTeX delimiters like $ or \\[. Keep language student-friendly.";
-
-    // Maps lasso-tab instruction names → user-facing task description
-    private static readonly Dictionary<string, string> SelectionPrompts = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["solution"] = "Look at the problem or work shown in the image. Provide a clear, step-by-step solution. Write all powers and math symbols using Unicode (e.g. x², y³, √, ≠) — never write 'x squared' or 'x cubed' in words.",
-        ["explain"]  = "Look at the content shown in the image. Explain this concept clearly for a student who is confused. Write all powers and math symbols using Unicode (e.g. x², y³, √, ≠) — never write 'x squared', 'x cubed', or 'x times x' in words.",
-        ["mistakes"] = "Look at the student work shown in the image. Identify any mathematical or conceptual mistakes. If the work is correct, confirm it. Write all math using Unicode notation (e.g. x², y³).",
-        ["quiz"]     = "Based on the content shown in the image, write 3 short quiz questions with their correct answers. Write all math using Unicode notation (e.g. x², y³).",
-    };
+    // Prompts are loaded from plain-text files under Prompts/ (embedded resources).
+    // To change what the AI says, edit the .txt files directly — no C# changes needed.
 
     public SmartboardAiService(IAiClient client, ISmartboardUsageLogRepository log, ITeacherContextAccessor teacher)
     {
@@ -50,15 +37,13 @@ public sealed class SmartboardAiService : ISmartboardAiService
 
     public async Task<AiPromptResponse> AskSelectionAsync(AiSelectionRequest req, CancellationToken ct = default)
     {
-        var task = SelectionPrompts.TryGetValue(req.Instruction, out var mapped)
-            ? mapped
-            : req.Instruction;
+        var task = AiPromptTemplates.SelectionTabPrompt(req.Instruction);
 
         var message = string.IsNullOrEmpty(req.ImageBase64)
             ? new AiMessage(task)
             : new AiMessage(task, req.ImageBase64, req.ImageMediaType ?? "image/jpeg");
 
-        var result = await _client.ChatAsync(SystemPrompt, message, ct);
+        var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal, message, ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
@@ -66,21 +51,21 @@ public sealed class SmartboardAiService : ISmartboardAiService
 
     public async Task<AiPromptResponse> ExplainDifferentlyAsync(AiPromptRequest req, CancellationToken ct = default)
     {
-        var result = await _client.ChatAsync(SystemPrompt,
+        var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal,
             new AiMessage($"Explain the following concept using a different approach, analogy, or example:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> SimplifyAsync(AiPromptRequest req, CancellationToken ct = default)
     {
-        var result = await _client.ChatAsync(SystemPrompt,
+        var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal,
             new AiMessage($"Simplify the following concept or explanation so a struggling student can understand it easily:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> LocalExampleAsync(AiPromptRequest req, CancellationToken ct = default)
     {
-        var result = await _client.ChatAsync(SystemPrompt,
+        var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal,
             new AiMessage($"Give a relatable real-life example from an Indian context (e.g. local food, festivals, daily life) " +
                           $"to illustrate the following concept:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
@@ -88,21 +73,21 @@ public sealed class SmartboardAiService : ISmartboardAiService
 
     public async Task<AiPromptResponse> QuickQuizAsync(AiPromptRequest req, CancellationToken ct = default)
     {
-        var result = await _client.ChatAsync(SystemPrompt,
+        var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal,
             new AiMessage($"Write 3 short quiz questions (with answers) to test understanding of:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> SummaryAsync(AiPromptRequest req, CancellationToken ct = default)
     {
-        var result = await _client.ChatAsync(SystemPrompt,
+        var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal,
             new AiMessage($"Write a concise 3-5 sentence summary of the following topic suitable for a student's revision notes:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
 
     public async Task<AiPromptResponse> HomeworkAsync(AiPromptRequest req, CancellationToken ct = default)
     {
-        var result = await _client.ChatAsync(SystemPrompt,
+        var result = await _client.ChatAsync(AiPromptTemplates.AiPromptGlobal,
             new AiMessage($"Suggest 3 appropriate homework problems or activities for students who have just learned:\n\n{req.Instruction}"), ct);
         return new AiPromptResponse(result, 0, 0m);
     }
