@@ -4,7 +4,17 @@ import { kbotContentService } from '@/services/kbotContentService';
 import type { CardLevelStatus, RenderedCard } from '@/types';
 
 /**
- * Scope all IDs in each SVG element to be unique within the document.
+ * The KBot Markdown renderer wraps SVG element lines with <p>…</p> tags.
+ * The HTML5 parser exits SVG foreign-content mode the moment it sees </p>,
+ * so <circle>, <text>, <rect>, <line> etc. that follow </defs></p> are parsed
+ * as HTML elements (invisible). Fix: strip all <p>/<br> tags inside each SVG
+ * text block before the browser ever sees the markup.
+ */
+function fixSvgMarkup(html: string): string {
+    return html.replace(/<svg\b[\s\S]*?<\/svg>/gi, svgBlock =>
+        svgBlock.replace(/<\/?\s*p\s*>/gi, '').replace(/<br\s*\/?>/gi, '')
+    );
+}
  * KBot generates multiple SVGs per card and reuses gradient/marker IDs
  * (e.g. "arrowGrad", "arrowhead") across them. In a single HTML document
  * the first definition wins, so later SVGs use the wrong gradient colours.
@@ -107,7 +117,7 @@ function CardViewer({ slug, card, onBack }: { slug: string; card: CardLevelStatu
                 )}
                 {rendered?.html && (
                     <iframe
-                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0">${scopeSvgIds(rendered.html)}</body></html>`}
+                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0">${scopeSvgIds(fixSvgMarkup(rendered.html))}</body></html>`}
                         sandbox="allow-scripts allow-same-origin"
                         style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                         title={`Card ${card.level}`}
