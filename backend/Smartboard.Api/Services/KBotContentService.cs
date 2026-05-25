@@ -50,13 +50,13 @@ public sealed class KBotContentService : IKBotContentService
         [property: JsonPropertyName("is_current")] bool IsCurrent,
         [property: JsonPropertyName("is_published")] bool IsPublished);
 
+    // ContentCardOut — returned by GET /topic/{slug}/card/{level}
     private sealed record KBotCardByLevelR(
-        [property: JsonPropertyName("html")]             string Html,
-        [property: JsonPropertyName("viewport_width")]   int ViewportWidth,
-        [property: JsonPropertyName("viewport_height")]  int ViewportHeight,
-        [property: JsonPropertyName("card_id")]          long? CardId,
-        [property: JsonPropertyName("version_id")]       long? VersionId,
-        [property: JsonPropertyName("etag")]             string? ETag);
+        [property: JsonPropertyName("id")]           long Id,
+        [property: JsonPropertyName("card_level")]   string CardLevel,
+        [property: JsonPropertyName("locale_key")]   string LocaleKey,
+        [property: JsonPropertyName("is_published")] bool IsPublished,
+        [property: JsonPropertyName("is_approved")]  bool IsApproved);
 
     private sealed record KBotRenderR(
         [property: JsonPropertyName("card_id")] long CardId,
@@ -116,11 +116,15 @@ public sealed class KBotContentService : IKBotContentService
     {
         var qs = $"language={Uri.EscapeDataString(language)}&country={Uri.EscapeDataString(country)}";
         if (state is not null) qs += $"&state={Uri.EscapeDataString(state)}";
-        var resp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/card/{Uri.EscapeDataString(level)}?{qs}", ct);
-        if (!resp.IsSuccessStatusCode) return null;
-        var raw = JsonSerializer.Deserialize<KBotCardByLevelR>(await resp.Content.ReadAsStringAsync(ct), _json);
-        if (raw is null) return null;
-        return new RenderedCardDto(raw.CardId ?? 0, raw.VersionId ?? 0, raw.Html, raw.ViewportWidth, raw.ViewportHeight, raw.ETag ?? string.Empty);
+
+        // Step 1: Resolve the correct locale-specific card to get its id
+        var cardResp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/card/{Uri.EscapeDataString(level)}?{qs}", ct);
+        if (!cardResp.IsSuccessStatusCode) return null;
+        var card = JsonSerializer.Deserialize<KBotCardByLevelR>(await cardResp.Content.ReadAsStringAsync(ct), _json);
+        if (card is null) return null;
+
+        // Step 2: Render the card HTML using the resolved card id
+        return await RenderAsync(card.Id, null, ct);
     }
 
     public async Task<IReadOnlyList<ContentCardVersionDto>> GetVersionsAsync(long cardId, CancellationToken ct = default)
