@@ -15,11 +15,8 @@ function fixSvgMarkup(html: string): string {
         svgBlock.replace(/<\/?\s*p\s*>/gi, '').replace(/<br\s*\/?>/gi, '')
     );
 }
- * KBot generates multiple SVGs per card and reuses gradient/marker IDs
- * (e.g. "arrowGrad", "arrowhead") across them. In a single HTML document
- * the first definition wins, so later SVGs use the wrong gradient colours.
- * We prefix every id="…" definition and every url(#…) / href="#…" reference
- * inside each <svg>…</svg> block with a per-SVG counter.
+/**
+ * Scope duplicate IDs across multiple SVGs in the same document.
  */
 function scopeSvgIds(html: string): string {
     let counter = 0;
