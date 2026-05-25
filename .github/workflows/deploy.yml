@@ -8,9 +8,11 @@ on:
     workflow_dispatch:
 
 # Required GitHub secrets (Settings → Secrets and variables → Actions):
-#   EC2_HOST              — 13.205.70.12 (or your current public IP)
-#   EC2_SSH_KEY           — contents of saviknowledgebot.pem (the private key)
-#   SMARTBOARD_DB_CONNSTR — full ADO.NET connection string (password included)
+#   EC2_HOST                  — 13.205.70.12 (or your current public IP)
+#   EC2_SSH_KEY               — contents of saviknowledgebot.pem (the private key)
+#   SMARTBOARD_DB_CONNSTR     — full ADO.NET connection string (password included)
+#   SMARTBOARD_AI_TEXT_KEY    — DeepSeek API key (sk-...)
+#   SMARTBOARD_AI_VISION_KEY  — Anthropic API key (sk-ant-...) used for vision + claude
 
 jobs:
     # ──────────────────────────────────────────────────────────────────────────
@@ -103,16 +105,20 @@ jobs:
               uses: appleboy/ssh-action@v1.0.3
               env:
                   SMARTBOARD_DB_CONNSTR: ${{ secrets.SMARTBOARD_DB_CONNSTR }}
+                  SMARTBOARD_AI_TEXT_KEY: ${{ secrets.SMARTBOARD_AI_TEXT_KEY }}
+                  SMARTBOARD_AI_VISION_KEY: ${{ secrets.SMARTBOARD_AI_VISION_KEY }}
               with:
                   host: ${{ secrets.EC2_HOST }}
                   username: ec2-user
                   key: ${{ secrets.EC2_SSH_KEY }}
-                  # Pass env var securely — not interpolated directly in script text.
-                  envs: SMARTBOARD_DB_CONNSTR
+                  # Pass env vars securely — not interpolated directly in script text.
+                  envs: SMARTBOARD_DB_CONNSTR,SMARTBOARD_AI_TEXT_KEY,SMARTBOARD_AI_VISION_KEY
                   script: |
                       set -euo pipefail
                       chmod +x /tmp/smartboard-deploy/deploy.sh
                       DEPLOY_DIR=/tmp/smartboard-deploy \
                         SMARTBOARD_DB_CONNSTR="$SMARTBOARD_DB_CONNSTR" \
+                        SMARTBOARD_AI_TEXT_KEY="$SMARTBOARD_AI_TEXT_KEY" \
+                        SMARTBOARD_AI_VISION_KEY="$SMARTBOARD_AI_VISION_KEY" \
                         bash /tmp/smartboard-deploy/deploy.sh
                       rm -rf /tmp/smartboard-deploy

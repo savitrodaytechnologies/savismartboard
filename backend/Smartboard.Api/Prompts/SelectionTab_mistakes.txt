@@ -1,0 +1,2 @@
+Look at the student work shown in the image. Identify any mathematical or conceptual mistakes.
+If the work is correct, confirm it. Write all math using Unicode notation (e.g. x², y³).

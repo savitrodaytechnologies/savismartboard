@@ -7,7 +7,7 @@ namespace Smartboard.Api.Controllers;
 
 [ApiController]
 [AllowAnonymous]
-[Route("api/smartboard/ai")]
+[Route("api/v1/smartboard/ai")]
 public sealed class SmartboardAiController : ControllerBase
 {
     private readonly ISmartboardAiService _svc;
@@ -33,4 +33,7 @@ public sealed class SmartboardAiController : ControllerBase
 
     [HttpPost("ask-selection")]
     public Task<AiPromptResponse> AskSelection([FromBody] AiSelectionRequest req, CancellationToken ct) => _svc.AskSelectionAsync(req, ct);
+
+    [HttpPost("identify-topic")]
+    public Task<AiPromptResponse> IdentifyTopic([FromBody] AiSelectionRequest req, CancellationToken ct) => _svc.IdentifyTopicAsync(req, ct);
 }

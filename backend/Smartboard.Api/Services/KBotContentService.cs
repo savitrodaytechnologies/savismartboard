@@ -7,8 +7,14 @@ namespace Smartboard.Api.Services;
 
 public interface IKBotContentService
 {
-    /// <summary>GET /topic/{slug}/cards — card level availability (L0–L6) for a topic.</summary>
-    Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct = default);
+    /// <summary>GET /topics/search?q={query} — ranked topic search across the full KBot catalogue.</summary>
+    Task<IReadOnlyList<KBotTopicSearchResultDto>> SearchTopicsAsync(string query, CancellationToken ct = default);
+
+    /// <summary>GET /topic/{slug}/cards — card level availability (L0–L6) for a topic. Locale params default to en/in.</summary>
+    Task<TopicCardsDto?> GetTopicCardsAsync(string slug, string language = "en", string country = "in", string? state = null, CancellationToken ct = default);
+
+    /// <summary>GET /topic/{slug}/card/{level} — rendered HTML for a specific card level. language/country/state localise the content.</summary>
+    Task<RenderedCardDto?> GetCardByLevelAsync(string slug, string level, string language = "en", string country = "in", string? state = null, CancellationToken ct = default);
 
     /// <summary>GET /cards/{card_id}/versions — version history for a card family.</summary>
     Task<IReadOnlyList<ContentCardVersionDto>> GetVersionsAsync(long cardId, CancellationToken ct = default);
@@ -44,6 +50,14 @@ public sealed class KBotContentService : IKBotContentService
         [property: JsonPropertyName("is_current")] bool IsCurrent,
         [property: JsonPropertyName("is_published")] bool IsPublished);
 
+    // ContentCardOut — returned by GET /topic/{slug}/card/{level}
+    private sealed record KBotCardByLevelR(
+        [property: JsonPropertyName("id")]           long Id,
+        [property: JsonPropertyName("card_level")]   string CardLevel,
+        [property: JsonPropertyName("locale_key")]   string LocaleKey,
+        [property: JsonPropertyName("is_published")] bool IsPublished,
+        [property: JsonPropertyName("is_approved")]  bool IsApproved);
+
     private sealed record KBotRenderR(
         [property: JsonPropertyName("card_id")] long CardId,
         [property: JsonPropertyName("version_id")] long VersionId,
@@ -52,12 +66,35 @@ public sealed class KBotContentService : IKBotContentService
         [property: JsonPropertyName("viewport_height")] int ViewportHeight,
         [property: JsonPropertyName("etag")] string ETag);
 
+    // __ private KBot search response shape ______________________________________
+    private sealed record KBotSearchResultR(
+        [property: JsonPropertyName("slug")]          string Slug,
+        [property: JsonPropertyName("title")]         string Title,
+        [property: JsonPropertyName("board")]         string? Board,
+        [property: JsonPropertyName("grade")]         int? Grade,
+        [property: JsonPropertyName("subject")]       string? Subject,
+        [property: JsonPropertyName("chapter_title")] string? ChapterTitle,
+        [property: JsonPropertyName("floor_level")]   int? FloorLevel,
+        [property: JsonPropertyName("relevance_score")] double RelevanceScore,
+        [property: JsonPropertyName("match_reason")]  string? MatchReason);
+
     private readonly IKBotClient _client;
     public KBotContentService(IKBotClient client) => _client = client;
 
-    public async Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct = default)
+    public async Task<IReadOnlyList<KBotTopicSearchResultDto>> SearchTopicsAsync(string query, CancellationToken ct = default)
     {
-        var resp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/cards", ct);
+        var resp = await _client.GetAsync($"/api/v1/smartboard/kbot/topics/search?q={Uri.EscapeDataString(query)}&top_k=5", ct);
+        if (!resp.IsSuccessStatusCode) return Array.Empty<KBotTopicSearchResultDto>();
+        var raw = JsonSerializer.Deserialize<KBotSearchResultR[]>(await resp.Content.ReadAsStringAsync(ct), _json);
+        return raw?.Select(r => new KBotTopicSearchResultDto(r.Slug, r.Title, r.Board, r.Grade, r.Subject, r.ChapterTitle, r.FloorLevel, r.RelevanceScore, r.MatchReason)).ToList()
+               ?? (IReadOnlyList<KBotTopicSearchResultDto>)Array.Empty<KBotTopicSearchResultDto>();
+    }
+
+    public async Task<TopicCardsDto?> GetTopicCardsAsync(string slug, string language = "en", string country = "in", string? state = null, CancellationToken ct = default)
+    {
+        var qs = $"language={Uri.EscapeDataString(language)}&country={Uri.EscapeDataString(country)}";
+        if (state is not null) qs += $"&state={Uri.EscapeDataString(state)}";
+        var resp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/cards?{qs}", ct);
         if (!resp.IsSuccessStatusCode) return null;
         var raw = JsonSerializer.Deserialize<KBotTopicCardsR>(await resp.Content.ReadAsStringAsync(ct), _json);
         if (raw is null) return null;
@@ -73,6 +110,21 @@ public sealed class KBotContentService : IKBotContentService
         }).ToList();
 
         return new TopicCardsDto(raw.Slug, raw.Title, cards);
+    }
+
+    public async Task<RenderedCardDto?> GetCardByLevelAsync(string slug, string level, string language = "en", string country = "in", string? state = null, CancellationToken ct = default)
+    {
+        var qs = $"language={Uri.EscapeDataString(language)}&country={Uri.EscapeDataString(country)}";
+        if (state is not null) qs += $"&state={Uri.EscapeDataString(state)}";
+
+        // Step 1: Resolve the correct locale-specific card to get its id
+        var cardResp = await _client.GetAsync($"topic/{Uri.EscapeDataString(slug)}/card/{Uri.EscapeDataString(level)}?{qs}", ct);
+        if (!cardResp.IsSuccessStatusCode) return null;
+        var card = JsonSerializer.Deserialize<KBotCardByLevelR>(await cardResp.Content.ReadAsStringAsync(ct), _json);
+        if (card is null) return null;
+
+        // Step 2: Render the card HTML using the resolved card id
+        return await RenderAsync(card.Id, null, ct);
     }
 
     public async Task<IReadOnlyList<ContentCardVersionDto>> GetVersionsAsync(long cardId, CancellationToken ct = default)

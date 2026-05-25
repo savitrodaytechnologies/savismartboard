@@ -89,7 +89,7 @@ public sealed class SmartboardSessionRepository : ISmartboardSessionRepository
     {
         const string sql = """
             SELECT TOP 10
-                   SessionId, Status, StartedAt, EndedAt
+                   SessionId, SessionTitle, Status, StartedAt, EndedAt
             FROM   dbo.SmartboardSession
             WHERE  SchoolId  = @SchoolId
               AND  TeacherId = @TeacherId
@@ -101,7 +101,7 @@ public sealed class SmartboardSessionRepository : ISmartboardSessionRepository
             new CommandDefinition(sql, new { SchoolId = schoolId, TeacherId = teacherId }, cancellationToken: ct));
 
         return rows
-            .Select(s => new SessionDto(s.SessionId, s.Status, s.StartedAt, s.EndedAt, []))
+            .Select(s => new SessionDto(s.SessionId, s.Status, s.StartedAt, s.EndedAt, [], s.SessionTitle))
             .ToList();
     }
 

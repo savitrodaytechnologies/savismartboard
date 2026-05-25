@@ -62,7 +62,7 @@ export default function TopicTeachingPage() {
             await db.pages.put({ key: pageKey(sid, 1), sessionId: sid, pageNo: 1, pageType: 'ContentCard', sourceType: 'KBotContentCard', sourceId: withCardId ?? null, sourceVersionId: withVersionId ?? null, pageJson: json, revision: 1, syncStatus: 'pending' });
             await enqueue({ op: 'savePage', payload: { sessionId: sid, pageNo: 1, pageType: 'ContentCard', sourceType: 'KBotContentCard', sourceId: withCardId ?? null, sourceVersionId: withVersionId ?? null, pageJson: json, revision: 1 } });
             void processQueue();
-            navigate(`/session/${sid}`);
+            navigate(`/session/${sid}${slug ? `?slug=${encodeURIComponent(slug)}` : ''}`);
         } finally {
             setStarting(false);
         }

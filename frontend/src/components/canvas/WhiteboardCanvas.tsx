@@ -37,11 +37,12 @@ interface Props {
     savedViewport?: { scale: number; pos: { x: number; y: number } };
     onViewportChange: (v: { scale: number; pos: { x: number; y: number } }) => void;
     onAiCapture?: (dataUrl: string) => void;
+    onToolChange?: (patch: Partial<ToolState>) => void;
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear, savedViewport, onViewportChange, onAiCapture }: Props) {
+export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush, onRedoClear, savedViewport, onViewportChange, onAiCapture, onToolChange }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const stageRef = useRef<Konva.Stage>(null);
 
@@ -92,6 +93,18 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     const textInputRef = useRef(textInput);
     textInputRef.current = textInput;
 
+    // Reliably focus the textarea when it appears (autoFocus alone is not enough
+    // because the Konva pointerdown event can steal focus after mount)
+    useEffect(() => {
+        if (textInput && textareaRef.current) {
+            // setTimeout pushes focus call after all synchronous pointer-event
+            // handlers (including Konva's) have finished, ensuring the textarea
+            // actually receives and keeps focus on the first click.
+            const id = setTimeout(() => textareaRef.current?.focus(), 0);
+            return () => clearTimeout(id);
+        }
+    }, [textInput]);
+
     // Lasso selection
     const isLasso = useRef(false);
     const lassoPointsRef = useRef<number[]>([]);
@@ -118,7 +131,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     // Space bar → pan mode overlay
     useEffect(() => {
         const onDown = (e: KeyboardEvent) => {
-            if (e.code === 'Space' && !e.repeat) {
+            // Don't intercept space while the text annotation input is focused
+            if (e.code === 'Space' && !e.repeat && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') {
                 e.preventDefault();
                 spaceRef.current = true;
                 setSpaceDown(true);
@@ -138,6 +152,37 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         };
     }, []);
 
+    // iOS Safari: prevent page scroll/bounce while canvas is active.
+    // React touch handlers are passive by default so e.preventDefault() is silently
+    // ignored there; we need a native non-passive listener on the container instead.
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        document.body.style.touchAction = 'none';
+        return () => {
+            document.body.style.overflow = '';
+            document.body.style.touchAction = '';
+        };
+    }, []);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        // Prevent iOS Safari from scrolling the page on touch.
+        // Skip prevention when the touch lands on a button/input so zoom
+        // controls and scrollbar thumbs still respond to taps.
+        const prevent = (e: TouchEvent) => {
+            if (!(e.target as HTMLElement).closest('button, textarea, input')) {
+                e.preventDefault();
+            }
+        };
+        el.addEventListener('touchstart', prevent, { passive: false });
+        el.addEventListener('touchmove', prevent, { passive: false });
+        return () => {
+            el.removeEventListener('touchstart', prevent);
+            el.removeEventListener('touchmove', prevent);
+        };
+    }, []);
+
     // Clear lasso selection when switching away from lasso tool
     useEffect(() => {
         if (toolState.tool !== 'lasso') {
@@ -148,9 +193,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         }
     }, [toolState.tool]);
 
-    // Window-level mouse handlers for scrollbar thumb drag
+    // Window-level pointer handlers for scrollbar thumb drag (pointermove/up covers mouse + touch + stylus)
     useEffect(() => {
-        const onMove = (e: MouseEvent) => {
+        const onMove = (e: PointerEvent) => {
             const d = scrollDragRef.current;
             if (!d) return;
             const delta = (d.axis === 'h' ? e.clientX : e.clientY) - d.startClient;
@@ -165,12 +210,68 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             );
         };
         const onUp = () => { scrollDragRef.current = null; };
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
         return () => {
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
         };
+    }, []);
+
+    // Pinch-to-zoom + two-finger pan (tablet / touch support)
+    const lastPinchRef = useRef<{ dist: number; mid: { x: number; y: number } } | null>(null);
+
+    const handleTouchStart = useCallback((e: KonvaEventObject<TouchEvent>) => {
+        const touches = e.evt.touches;
+        if (touches.length === 2) {
+            e.evt.preventDefault();
+            // Cancel any single-finger drawing that started before the second finger landed
+            isDrawing.current = false;
+            isPanning.current = false;
+            setActivePoints([]);
+            const dx = touches[1].clientX - touches[0].clientX;
+            const dy = touches[1].clientY - touches[0].clientY;
+            lastPinchRef.current = {
+                dist: Math.sqrt(dx * dx + dy * dy),
+                mid: { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 },
+            };
+        }
+    }, []);
+
+    const handleTouchMove = useCallback((e: KonvaEventObject<TouchEvent>) => {
+        const touches = e.evt.touches;
+        if (touches.length !== 2 || !lastPinchRef.current) return;
+        e.evt.preventDefault();
+        const dx = touches[1].clientX - touches[0].clientX;
+        const dy = touches[1].clientY - touches[0].clientY;
+        const newDist = Math.sqrt(dx * dx + dy * dy);
+        const newMid = { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 };
+
+        const stage = stageRef.current;
+        if (!stage) return;
+        const rect = (stage.container() as HTMLElement).getBoundingClientRect();
+        const pinchX = newMid.x - rect.left;
+        const pinchY = newMid.y - rect.top;
+
+        // Zoom around pinch midpoint
+        const ratio = newDist / lastPinchRef.current.dist;
+        const oldScale = stageRef.current!.scaleX();
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale * ratio));
+        const wx = (pinchX - stage.x()) / oldScale;
+        const wy = (pinchY - stage.y()) / oldScale;
+
+        // Two-finger pan delta
+        const panDx = newMid.x - lastPinchRef.current.mid.x;
+        const panDy = newMid.y - lastPinchRef.current.mid.y;
+
+        setStageScale(newScale);
+        setStagePos({ x: pinchX - wx * newScale + panDx, y: pinchY - wy * newScale + panDy });
+
+        lastPinchRef.current = { dist: newDist, mid: newMid };
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+        lastPinchRef.current = null;
     }, []);
 
     const isPanTool = toolState.tool === 'select';
@@ -203,7 +304,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
     }, []);
 
     // ── Mouse events ─────────────────────────────────────────────────────────
-    const handleMouseDown = useCallback((e: KonvaEventObject<MouseEvent>) => {
+    const handlePointerDown = useCallback((e: KonvaEventObject<PointerEvent>) => {
+        if (!e.evt.isPrimary) return; // ignore secondary touch points (pinch)
         const stage = e.target.getStage()!;
         // Middle mouse, space+left, or pan tool → begin panning
         if (e.evt.button === 1 || spaceRef.current || isPanTool) {
@@ -233,10 +335,14 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             setPreviewShape({ x, y, w: 0, h: 0 });
             setPreviewEnd(null);
         } else if (toolState.tool === 'text') {
-            // Commit any existing open text input before opening a new one
-            if (textareaRef.current) commitText(textareaRef.current.value, textInputRef.current);
-            const ptr = stage.getPointerPosition();
-            if (ptr) setTextInput({ screenX: ptr.x, screenY: ptr.y, worldX: x, worldY: y });
+            if (textInputRef.current) {
+                // Textarea already open — commit it and do NOT open another one on this click
+                if (textareaRef.current) commitText(textareaRef.current.value, textInputRef.current);
+            } else {
+                // No open textarea — place a new one at the click position
+                const ptr = stage.getPointerPosition();
+                if (ptr) setTextInput({ screenX: ptr.x, screenY: ptr.y, worldX: x, worldY: y });
+            }
         } else if (toolState.tool === 'lasso') {
             isLasso.current = true;
             lassoPointsRef.current = [x, y];
@@ -245,7 +351,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         }
     }, [toolState.tool, getWorldPos, page.annotations, onCommit, onUndoPush, onRedoClear, isPanTool]);
 
-    const handleMouseMove = useCallback((e: KonvaEventObject<MouseEvent>) => {
+    const handlePointerMove = useCallback((e: KonvaEventObject<PointerEvent>) => {
+        if (!e.evt.isPrimary) return; // ignore secondary touch points
         if (isPanning.current && lastPanClient.current) {
             const dx = e.evt.clientX - lastPanClient.current.x;
             const dy = e.evt.clientY - lastPanClient.current.y;
@@ -279,7 +386,8 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
         }
     }, [toolState.tool, getWorldPos, shapeStart]);
 
-    const handleMouseUp = useCallback((e: KonvaEventObject<MouseEvent>) => {
+    const handlePointerUp = useCallback((e: KonvaEventObject<PointerEvent>) => {
+        if (!e.evt.isPrimary) return; // ignore secondary touch points
         if (isPanning.current) {
             isPanning.current = false;
             lastPanClient.current = null;
@@ -345,7 +453,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             onRedoClear();
             onCommit(prev => [...prev, buildTextAnnotation(pos.worldX, pos.worldY, trimmed, toolState)]);
         }
-    }, [toolState, page.annotations, onCommit, onUndoPush, onRedoClear]);
+        // Return to select tool after placing text (one-shot behaviour)
+        onToolChange?.({ tool: 'select' });
+    }, [toolState, page.annotations, onCommit, onUndoPush, onRedoClear, onToolChange]);
 
     // ── Zoom button helpers ──────────────────────────────────────────────────
     const zoomBy = useCallback((factor: number) => {
@@ -378,8 +488,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
             width: Math.max(1, sw),
             height: Math.max(1, sh),
             pixelRatio: 1,
-            mimeType: 'image/jpeg',
-            quality: 0.85,
+            mimeType: 'image/png',
         });
         onAiCapture(dataUrl);
         setLassoBox(null);
@@ -467,7 +576,7 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 toolState.tool === 'text' ? 'text' : 'crosshair';
 
     return (
-        <div ref={containerRef} className="relative flex-1 bg-neutral-50 overflow-hidden">
+        <div ref={containerRef} className="relative flex-1 bg-neutral-50 overflow-hidden" style={{ touchAction: 'none' }}>
             {/* Inline text input — appears at click position when text tool is active */}
             {textInput && (
                 <div className="absolute z-20" style={{ left: textInput.screenX, top: textInput.screenY }}>
@@ -518,24 +627,27 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 ref={stageRef}
                 width={containerW}
                 height={containerH}
-                style={{ cursor, position: 'absolute', inset: 0 }}
+                style={{ cursor, position: 'absolute', inset: 0, touchAction: 'none' }}
                 x={stagePos.x}
                 y={stagePos.y}
                 scaleX={stageScale}
                 scaleY={stageScale}
                 onWheel={handleWheel}
-                onMouseDown={handleMouseDown}
-                onMouseMove={e => {
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onPointerDown={handlePointerDown}
+                onPointerMove={e => {
                     // track eraser circle position
-                    if (toolState.tool === 'eraser') {
+                    if (e.evt.isPrimary && toolState.tool === 'eraser') {
                         const stage = e.target.getStage()!;
                         const ptr = stage.getPointerPosition();
                         if (ptr) setEraserPos({ x: ptr.x, y: ptr.y });
                     }
-                    handleMouseMove(e);
+                    handlePointerMove(e);
                 }}
-                onMouseLeave={() => setEraserPos(null)}
-                onMouseUp={handleMouseUp}
+                onPointerLeave={() => setEraserPos(null)}
+                onPointerUp={handlePointerUp}
                 onDblClick={() => {}}
             >
                 <Layer>
@@ -645,8 +757,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 <div
                     className="absolute top-0.5 rounded-full bg-slate-400/70 hover:bg-slate-500/80 cursor-default transition-colors"
                     style={{ left: hThumbLeft, width: hThumbW, height: SB - 2 }}
-                    onMouseDown={e => {
+                    onPointerDown={e => {
                         e.preventDefault();
+                        (e.target as HTMLElement).setPointerCapture(e.pointerId);
                         scrollDragRef.current = {
                             axis: 'h',
                             startClient: e.clientX,
@@ -668,8 +781,9 @@ export default function WhiteboardCanvas({ page, toolState, onCommit, onUndoPush
                 <div
                     className="absolute left-0.5 rounded-full bg-slate-400/70 hover:bg-slate-500/80 cursor-default transition-colors"
                     style={{ top: vThumbTop, height: vThumbH, width: SB - 2 }}
-                    onMouseDown={e => {
+                    onPointerDown={e => {
                         e.preventDefault();
+                        (e.target as HTMLElement).setPointerCapture(e.pointerId);
                         scrollDragRef.current = {
                             axis: 'v',
                             startClient: e.clientY,

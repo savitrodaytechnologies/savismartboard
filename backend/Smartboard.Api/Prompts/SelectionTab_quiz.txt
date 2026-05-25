@@ -1,0 +1,2 @@
+Based on the content shown in the image, write 3 short quiz questions with their correct answers.
+Write all math using Unicode notation (e.g. x², y³).

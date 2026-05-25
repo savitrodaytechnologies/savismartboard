@@ -20,6 +20,18 @@ export interface RenderedCard { cardId: number; versionId: number; html: string;
 export interface QuestionSummary { questionId: number; questionType: string; difficulty: number; preview: string; source: string; }
 export interface SolvedCard { questionId: number; html: string; versionId: number; }
 
+export interface KBotTopicSearchResult {
+    slug: string;
+    title: string;
+    board?: string;
+    grade?: number;
+    subject?: string;
+    chapter_title?: string;
+    floor_level?: number;
+    relevance_score: number;
+    match_reason?: string;
+}
+
 export type SourceType =
     | 'KBotContentCard'
     | 'KBotQuestion'

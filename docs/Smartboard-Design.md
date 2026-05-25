@@ -1,7 +1,7 @@
 # Savischools Smartboard — Detailed Design Document
 
-> Version: 1.3  
-> Date: 17 May 2026  
+> Version: 2.0  
+> Date: 24 May 2026  
 > Status: In development — see §16 for current implementation status  
 > Owners: Parivesh (Smartboard Core) · Manohar (Savischools Integration) · Mukesh (KBot Integration)
 
@@ -139,7 +139,7 @@ The Smartboard App is a **classroom delivery layer**. It does not own users, syl
 ```
 
 **KBot background HTML stripping (implemented 17 May 2026):**  
-For `KBotContentCard`, `KBotQuestion`, and `KBotSolvedCard` source types, the rendered HTML is **not** embedded in `background.url` inside `PageJson`. The HTML is already stored in KBot's own database and served via `/api/smartboard/kbot/content-cards/{id}/render`. Embedding it was causing 50–200 KB of redundant data per page. The frontend's `useSmartboardSession` hook now:
+For `KBotContentCard`, `KBotQuestion`, and `KBotSolvedCard` source types, the rendered HTML is **not** embedded in `background.url` inside `PageJson`. The HTML is already stored in KBot's own database and served via `/api/v1/smartboard/kbot/content-cards/{id}/render`. Embedding it was causing 50–200 KB of redundant data per page. The frontend's `useSmartboardSession` hook now:
 1. Serialises `PageJson` **without** `background.url` for KBot sources.
 2. On load, a re-hydration `useEffect` fetches the card HTML via `kbotContentService.render()` (IndexedDB `cardCache` first → KBot API fallback) and patches it into React state.
 3. `WhiteboardCanvas` renders a blank background while the fetch is in-flight — graceful, no flicker for cached cards.
@@ -172,49 +172,52 @@ When a session is ended, `PageJson` (annotations) is archived to S3. See §4.3.
 
 ## 5. API Surface (Smartboard backend)
 
-All routes are under `/api/smartboard/`. The browser never calls Savischools or KBot directly.
+All versioned routes are under `/api/v1/smartboard/`. The browser never calls Savischools or KBot directly.
+
+> **Versioning policy:** All Smartboard routes carry a `/v1/` prefix from v1.4 onwards. The `api/dev` endpoint is excluded from versioning (dev-only, never called by production clients). The Vite dev proxy matches `/api` (prefix), so both `/api/v1/...` and `/api/dev/...` are proxied without config changes. Android and future native clients target `/api/v1/` directly.
 
 ### 5.1 Context (Manohar)
 ```
-GET  /api/smartboard/context                       → current teacher profile + school
-GET  /api/smartboard/classes                       → classes assigned to teacher
-GET  /api/smartboard/sections?classId=             → sections for a class
-GET  /api/smartboard/subjects?classId=             → subjects the teacher teaches
-GET  /api/smartboard/topics?subjectId=&classId=    → syllabus topics
-POST /api/smartboard/syllabus/topics/{topicId}/mark-taught
+GET  /api/v1/smartboard/context                       → current teacher profile + school
+GET  /api/v1/smartboard/classes                       → classes assigned to teacher
+GET  /api/v1/smartboard/sections?classId=             → sections for a class
+GET  /api/v1/smartboard/subjects?classId=             → subjects the teacher teaches
+GET  /api/v1/smartboard/topics?subjectId=&classId=    → syllabus topics
+POST /api/v1/smartboard/syllabus/topics/{topicId}/mark-taught
 ```
 
 ### 5.2 KBot proxy (Mukesh)
 ```
-GET  /api/smartboard/kbot/topics/{topicId}/content-cards
-GET  /api/smartboard/kbot/content-cards/{cardId}
-GET  /api/smartboard/kbot/content-cards/{cardId}/versions
-GET  /api/smartboard/kbot/content-cards/{cardId}/render?versionId=
-GET  /api/smartboard/kbot/topics/{topicId}/questions?difficulty=
-GET  /api/smartboard/kbot/questions/{questionId}
-GET  /api/smartboard/kbot/questions/{questionId}/basic-explanation
-GET  /api/smartboard/kbot/questions/{questionId}/solved-card
+GET  /api/v1/smartboard/kbot/topics/{topicId}/content-cards
+GET  /api/v1/smartboard/kbot/content-cards/{cardId}
+GET  /api/v1/smartboard/kbot/content-cards/{cardId}/versions
+GET  /api/v1/smartboard/kbot/content-cards/{cardId}/render?versionId=
+GET  /api/v1/smartboard/kbot/topics/{topicId}/questions?difficulty=
+GET  /api/v1/smartboard/kbot/questions/{questionId}
+GET  /api/v1/smartboard/kbot/questions/{questionId}/basic-explanation
+GET  /api/v1/smartboard/kbot/questions/{questionId}/solved-card
 ```
 All responses include `eTag` + `updatedAt` for caching.
 
 ### 5.3 Sessions, export, share, AI (Parivesh)
 ```
-POST /api/smartboard/sessions/start
-PUT  /api/smartboard/sessions/{sessionId}/save           (idempotent, accepts page diffs)
-POST /api/smartboard/sessions/{sessionId}/pages          (append a page)
-PUT  /api/smartboard/sessions/{sessionId}/pages/{pageId} (replace page)
-GET  /api/smartboard/sessions/{sessionId}
-GET  /api/smartboard/sessions/recent
-POST /api/smartboard/sessions/{sessionId}/end
-POST /api/smartboard/sessions/{sessionId}/export         (pdf)
-POST /api/smartboard/sessions/{sessionId}/share          (to student/parent portal)
+POST /api/v1/smartboard/sessions/start
+PUT  /api/v1/smartboard/sessions/{sessionId}/save           (idempotent, accepts page diffs)
+POST /api/v1/smartboard/sessions/{sessionId}/pages          (append a page)
+PUT  /api/v1/smartboard/sessions/{sessionId}/pages/{pageId} (replace page)
+GET  /api/v1/smartboard/sessions/{sessionId}
+GET  /api/v1/smartboard/sessions/recent
+POST /api/v1/smartboard/sessions/{sessionId}/end
+POST /api/v1/smartboard/sessions/{sessionId}/export         (pdf)
+POST /api/v1/smartboard/sessions/{sessionId}/share          (to student/parent portal)
 
-POST /api/smartboard/ai/explain-differently
-POST /api/smartboard/ai/simplify
-POST /api/smartboard/ai/local-example
-POST /api/smartboard/ai/quick-quiz
-POST /api/smartboard/ai/summary
-POST /api/smartboard/ai/homework
+POST /api/v1/smartboard/ai/explain-differently
+POST /api/v1/smartboard/ai/simplify
+POST /api/v1/smartboard/ai/local-example
+POST /api/v1/smartboard/ai/quick-quiz
+POST /api/v1/smartboard/ai/summary
+POST /api/v1/smartboard/ai/homework
+POST /api/v1/smartboard/ai/ask-selection
 ```
 
 ### 5.4 Cross-cutting headers
@@ -274,7 +277,7 @@ Even though v1 is online-only, the following choices keep offline cheap to add l
 | M3 | Whiteboard + annotation layer | **Parivesh** | — | ✅ Complete — pen/highlighter/shapes/text/eraser/smart-shape/undo/redo/pages |
 | M4 | Question bank + solved card classroom mode | **Mukesh** | Parivesh (board insert) | 🟡 Backend complete; hide/reveal + insert-into-board UI not built |
 | M5 | Session save / export / share | **Parivesh** | Manohar (portal share) | 🟡 Session CRUD + auto-save + rename + delete + view-ended working; export + share are stubs |
-| M6 | Limited AI assistant + production hardening | **Parivesh** | Manohar + Mukesh (grounding data) | 🔴 Not started — `SmartboardAiService` all stubs, no `AiAssistantPanel` |
+| M6 | Limited AI assistant + production hardening | **Parivesh** | Manohar + Mukesh (grounding data) | 🟡 Partial — `AiAssistPanel` working (4 tabs, real AI calls, markdown rendering); export/share stubs remain; AI grounding (RAG from KBot snippets) not yet wired |
 
 Each milestone has its own acceptance criteria — see §11.
 
@@ -500,6 +503,64 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 | **Strip KBot HTML from PageJson** | `serialise()` omits `background.url` for `KBotContentCard`, `KBotQuestion`, `KBotSolvedCard`. Saves 50–200 KB per page. Re-hydration effect in `useSmartboardSession` fetches HTML on load (IndexedDB cache first). DB migration `002` strips existing rows. |
 | **S3 archival on session end** | Bucket `savismartboard-sessions` (ap-south-1, private). On `EndAsync`: mark Ended → gzip each page's `PageJson` → `PutObject` → `UPDATE SET PageJsonUrl=key, PageJson=NULL`. `GetAsync` re-hydrates from S3 for ended sessions. EC2 IAM role granted access. DB migration `003` adds `PageJsonUrl NVARCHAR(1000) NULL` and makes `PageJson` nullable. |
 
+#### Database connection — AWS RDS
+| Change | Detail |
+|---|---|
+| **RDS `smartuser` credential** | Default `appsettings.json` pointed to `localhost` SQL Server. `appsettings.Local.json` (gitignored) overrides `ConnectionStrings.Smartboard` to target `rdsexpserver.ccmuwbvpbelg.ap-south-1.rds.amazonaws.com`, DB=`savismartboard`, User=`smartuser`. |
+| **`create_app_user.sql`** | `db/scripts/create_app_user.sql` creates the `smartuser` login + DB user idempotently and grants `db_datareader` + `db_datawriter` on `savismartboard`. Run once against RDS before first deploy. |
+
+#### Tablet / touch compatibility
+| Change | Detail |
+|---|---|
+| **iPad Safari drawing fix** | React synthetic `onTouchMove` handlers are passive by default — `e.preventDefault()` was silently ignored, causing iOS to scroll the page instead of drawing. Fix: `useEffect` attaches non-passive native `touchstart`/`touchmove` listeners directly on the canvas container (skipping `button`/`textarea`/`input` targets). Body `overflow: hidden` + `touchAction: none` set on mount. |
+| **Android scrollbar pointer capture** | Scrollbar thumb drag handlers changed from `onMouseDown` to `onPointerDown` with `(e.target as HTMLElement).setPointerCapture(e.pointerId)`. Fixes drag release on Android tablets where `mousedown` events are not fired for touch. |
+
+#### API versioning
+| Change | Detail |
+|---|---|
+| **`/v1/` prefix added to all routes** | All 6 non-dev controllers updated: `[Route("api/smartboard/...")]` → `[Route("api/v1/smartboard/...")]`. `DevController` keeps `api/dev` (dev-only, excluded from public API contract). |
+| **Frontend `apiClient` base URL** | `baseURL: '/api'` → `'/api/v1'` in `apiClient.ts`. All 20+ service calls pick up the new prefix automatically. `devAuth.ts` uses raw `fetch('/api/dev/token')` and is unaffected. |
+| **Vite proxy unchanged** | Proxy pattern is `/api` (prefix match) — covers both `/api/dev/...` and `/api/v1/...` with no config change. |
+
+#### Production AI key injection fix
+| Change | Detail |
+|---|---|
+| **Root cause** | `appsettings.Production.json` has provider config but no `ApiKey` values. `deploy.sh` only wrote `ConnectionStrings__Smartboard` to `/opt/smartboard/env`. Both AI providers had empty keys on the EC2 → Anthropic/DeepSeek rejected calls with 401 → frontend showed "Could not get a response." |
+| **`deploy.sh`** | Updated to accept `SMARTBOARD_AI_TEXT_KEY` and `SMARTBOARD_AI_VISION_KEY` env vars and write them to `/opt/smartboard/env` as `Ai__Providers__deepseek__ApiKey` and `Ai__Providers__copilot__ApiKey` / `Ai__Providers__anthropic__ApiKey`. Keys are skipped (not written) if the env var is not set — backwards-compatible. |
+| **`deploy.yml`** | Updated to read `SMARTBOARD_AI_TEXT_KEY` and `SMARTBOARD_AI_VISION_KEY` from GitHub Actions secrets and pass them through to `deploy.sh`. |
+| **GitHub secrets required** | Two new secrets must be added in repo Settings → Secrets → Actions: `SMARTBOARD_AI_TEXT_KEY` (DeepSeek key) and `SMARTBOARD_AI_VISION_KEY` (Anthropic key). See §16.1 for full secrets list. |
+| **Immediate EC2 fix** | Run on EC2 to apply without waiting for a deploy: `sudo tee -a /opt/smartboard/env <<'EOF'` then add the two `Ai__Providers__*__ApiKey` lines, then `sudo systemctl restart smartboard-api`. |
+
+---
+
+### 16.0b Recent changes — 21–24 May 2026 sessions
+
+#### Sign-in and dev-auth fixes
+| Change | Detail |
+|---|---|
+| **DevController route fix** | `DevController` route was `api/dev` — prefix-stripped by the `/api/v1/` baseURL change, breaking the dev token endpoint. Changed to `api/v1/dev`. Commit `794a76d`. |
+| **Vite proxy port fix** | Vite proxy target was pointing to the wrong local port; corrected to `http://localhost:5105`. |
+
+#### EC2 502 fix (Kestrel binding)
+| Change | Detail |
+|---|---|
+| **Kestrel `0.0.0.0` binding** | EC2 had been provisioned with `ASPNETCORE_URLS=http://localhost:5000`. Docker nginx (`saviknowledgebot-nginx-1`) cannot reach `localhost` from inside the container — it needs `0.0.0.0`. Fixed via SSM + updated `smartboard-api.service`. Commit `c43dd0a`. See §18.9 for full troubleshooting steps. |
+
+#### Whiteboard text tool fixes
+| Change | Detail |
+|---|---|
+| **Text object cloning on every click** | Text tool was creating a new object on every canvas click instead of editing the existing one. Fixed by checking for existing text at click position before creating new. Commit `80fa23d`. |
+| **Focus timing** | Text input focus fired before the Konva transformer finished positioning, placing the cursor in the wrong spot. Fixed with a `setTimeout` delay. Commit `6783569`. |
+| **Auto-revert to Select** | After confirming a text placement (Enter or click-away), the tool now automatically reverts to the Select tool. Commit `6783569`. |
+
+#### AI Assist Panel — now fully working
+| Change | Detail |
+|---|---|
+| **Real AI calls** | `SmartboardAiService.AskSelectionAsync` now makes actual AI calls via `HybridAiClient` — vision calls go to Anthropic Claude; text-only calls go to DeepSeek. Commits `6271448`, `ff99c46`. |
+| **Unicode math fix** | AI was writing "x squared" in words rather than x². Updated `AiPromptGlobal.txt` + added explicit Unicode math instructions to each `SelectionTab_*.txt` prompt file. Commit `ff99c46`. |
+| **`react-markdown` rendering** | All 4 tabs now render AI responses as markdown via `react-markdown` + `remark-gfm` + `@tailwindcss/typography`. Equations render correctly as Unicode (² √ → ±). Commit `6271448`. |
+| **Prompt template system** | All AI prompts moved from C# inline strings to plain-text `.txt` embedded resource files (`Prompts/` folder). `AiPromptTemplates.cs` loads them at startup. No C# changes needed to edit prompts. Commit `a3fe00b`. See §17.8. |
+
 ---
 
 ### 16.1 Infrastructure
@@ -512,6 +573,24 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 | Health endpoint `/healthz` | ✅ Returns `Healthy` | |
 | `sqlcmd` on EC2 | ✅ Installed | mssql-tools18 via Microsoft RHEL9 repo; used for DB migrations |
 
+**Required GitHub Actions secrets** (repo Settings → Secrets → Actions):
+
+| Secret | Purpose |
+|---|---|
+| `EC2_HOST` | EC2 public IP — `13.205.70.12` |
+| `EC2_SSH_KEY` | Contents of `saviknowledgebot.pem` |
+| `SMARTBOARD_DB_CONNSTR` | Full ADO.NET connection string (includes password) |
+| `SMARTBOARD_AI_TEXT_KEY` | DeepSeek API key (`sk-...`) — used for all text-only AI prompts |
+| `SMARTBOARD_AI_VISION_KEY` | Anthropic API key (`sk-ant-...`) — used for lasso vision + Claude text fallback |
+
+**`/opt/smartboard/env` format on EC2** (written by `deploy.sh`, read by systemd `EnvironmentFile=`):
+```
+ConnectionStrings__Smartboard=Server=...;Database=savismartboard;...
+Ai__Providers__deepseek__ApiKey=sk-...
+Ai__Providers__copilot__ApiKey=sk-ant-...
+Ai__Providers__anthropic__ApiKey=sk-ant-...
+```
+
 ### 16.2 Backend services
 | Service | Status | Notes |
 |---|---|---|
@@ -520,7 +599,7 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 | `KBotQuestionService` | ✅ Implemented | list / detail / explanation / solved-card / submit |
 | `SmartboardContextService` | 🟡 KBot proxy | Returns KBot data as placeholder; must be replaced with real Savischools data when M1 is done |
 | `SmartboardSessionService` | 🟡 Partial | Create / get / recent / save-page / end / rename / delete working; S3 archival on end implemented; export + share return placeholder URLs |
-| `SmartboardAiService` | 🔴 Stub | All 6 methods return `[kind] {instruction}` |
+| `SmartboardAiService` | ✅ Implemented | `AskSelectionAsync` (vision + text via `HybridAiClient`), all 6 text prompts (`ExplainDifferently`, `Simplify`, `LocalExample`, `QuickQuiz`, `Summary`, `Homework`) — real AI calls via DeepSeek (text) and Anthropic Claude (vision) |
 | `S3PageArchiveService` | ✅ Implemented | `ArchivePageAsync` (gzip + PutObject), `RestorePageAsync` (GetObject + gunzip); registered as singleton; uses EC2 IAM role automatically |
 
 ### 16.3 Backend controllers — auth
@@ -540,7 +619,7 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 |---|---|---|
 | `TeacherDashboardPage` | ✅ Working | Class → Subject → Topic picker, recent sessions, blank board start, inline rename (✏️), delete with exclusion list, view ended sessions |
 | `TopicTeachingPage` | 🟡 Partial | Card list + question list + preview render; no question hide/reveal or insert-into-board from question panel |
-| `SmartboardSessionPage` | 🟡 Partial | Canvas + toolbar + undo/redo + page strip + KBot card background re-hydration + read-only view for ended sessions; no AI panel |
+| `SmartboardSessionPage` | 🟡 Partial | Canvas + toolbar + undo/redo + page strip + KBot card background re-hydration + read-only view for ended sessions; AI Assist Panel working (lasso → Ask AI ✨ → 4 tabs); Teaching Sidebar expansion planned (§19) |
 
 ### 16.5 Frontend components
 | Component | Status | Notes |
@@ -550,7 +629,7 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 | `PageStrip` | ✅ Complete | Thumbnail strip, add/delete pages |
 | `OfflineIndicator` | ✅ Complete | Pending sync badge |
 | `shapeDetector.ts` | ✅ Complete | `tryConvertToShape()` — Douglas-Peucker simplification, corner detection, triangle/rect/circle/line classification, measurement labels |
-| `AiAssistantPanel` | 🔴 Not built | M6 |
+| `AiAssistPanel` | ✅ Complete | 4 tabs (Solution/Explain/Mistakes/Quiz); lasso trigger → real AI calls (DeepSeek text + Claude vision); `react-markdown` + `remark-gfm` markdown rendering; Unicode math; prompt files in `Prompts/` folder |
 | `QuestionViewer` / `SolvedCardViewer` | 🔴 Not built | M4 classroom mode UI |
 
 ### 16.6 Known issues to fix before production
@@ -558,13 +637,15 @@ Telemetry: session counts, ink latency p95, auto-save failures, AI calls/cost pe
 2. `SmartboardContextService` — swap KBot proxy for real Savischools class/subject/topic data.
 3. M4 classroom mode — question hide/reveal UI + insert solved card into board.
 4. M5 export — PDF generation pipeline (server-side preferred; `pdf-lib` client fallback).
-5. AI Assist Panel — plug in real AI provider; `SmartboardAiService.AskSelectionAsync` currently stubs response.
+5. M5 share — signed URL delivery to Savischools student/parent portal.
+6. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
+7. S3 cleanup on session delete — `DeleteSessionAsync` currently only removes SQL rows; S3 objects for deleted sessions are not yet purged.
 
 ---
 
 ## 17. AI Assist Panel (Dual Board Feature)
 
-> Added: 17 May 2026. Status: frontend + API shape implemented; AI is stubbed.
+> Added: 17 May 2026. Status: **fully working** as of 24 May 2026 (4 tabs, real AI calls, markdown rendering).
 
 ### 17.1 Layout
 
@@ -606,7 +687,7 @@ The session page uses a **70/30 horizontal split**:
 ### 17.4 API — ask-selection endpoint
 
 ```
-POST /api/smartboard/ai/ask-selection
+POST /api/v1/smartboard/ai/ask-selection
 Body: { imageBase64: string, instruction: string, sessionId?: number }
 Response: { result: string, tokenCount: number, costUsd: number }
 ```
@@ -629,13 +710,545 @@ The image is a JPEG data URL (`data:image/jpeg;base64,...`) of the circled regio
 | Interface + stub | `SmartboardAiService.cs` | Added `AskSelectionAsync`; stub returns placeholder |
 | Controller | `SmartboardAiController.cs` | Added `POST ask-selection`; changed to `[AllowAnonymous]` (temporary, same as all other controllers) |
 
-### 17.7 Limitations (current stub phase)
-- AI response is a stub: `[ask-selection] {instruction}` — no real AI call made
-- Image is captured from the Konva canvas only (annotations layer); KBot HTML background is a separate DOM element and is **not** included in the capture. This means if the teacher circles a KBot card background, only their annotations over it are captured.  Future: use `html2canvas` or a server-side screen capture to include the full visible area.
-- Image size is not compressed before sending; very large selections (full canvas) may produce large payloads. TODO: cap at 800×600 px client-side before encoding.
-5. M5 share — signed URL delivery to Savischools student/parent portal.
-6. M6 AI service — implement grounded prompt templates, RAG from KBot snippets, cost logging, per-school budget cap.
-7. S3 cleanup on session delete — `DeleteSessionAsync` currently only removes SQL rows; S3 objects for deleted sessions are not yet purged.
+### 17.7 Current Limitations
+- **KBot background not captured:** Image is captured from the Konva canvas only (annotations layer). KBot HTML background is a separate DOM element and is **not** included in the AI image. If the teacher lassos over a KBot card, only their annotations are captured — not the card content. Future fix: use `html2canvas` or a server-side screen capture.
+- **Image size not compressed:** Very large lasso selections may produce large base64 payloads. TODO: cap at 800×600 px client-side before encoding.
+
+### 17.8 Prompt Template System
+
+> Added: 21 May 2026.
+
+All AI prompts are stored as **plain text files** under `backend/Smartboard.Api/Prompts/`. To change what the AI says, edit the `.txt` file directly — no C# changes needed.
+
+#### Files
+
+| File | Purpose |
+|---|---|
+| `AiPromptGlobal.txt` | Global system prompt injected into **every** AI call. Sets persona (CBSE K-12 assistant), markdown formatting rules, and Unicode math notation convention. |
+| `SelectionTab_solution.txt` | Task instruction for the **Solution** lasso tab |
+| `SelectionTab_explain.txt` | Task instruction for the **Explain** lasso tab |
+| `SelectionTab_mistakes.txt` | Task instruction for the **Mistakes** lasso tab |
+| `SelectionTab_quiz.txt` | Task instruction for the **Quiz** lasso tab |
+
+#### How it works
+
+The `.txt` files are declared as **EmbeddedResource** in `Smartboard.Api.csproj`:
+
+```xml
+<ItemGroup>
+  <EmbeddedResource Include="Prompts\*.txt" />
+</ItemGroup>
+```
+
+`AiPromptTemplates.cs` loads them at startup via `Assembly.GetManifestResourceStream`. The resource name follows the convention `Smartboard.Api.Prompts.<filename>`.
+
+`SmartboardAiService` references `AiPromptTemplates.AiPromptGlobal` (system prompt) and `AiPromptTemplates.SelectionTabPrompt(tab)` (per-tab task instruction). There are no hardcoded prompt strings in any service class.
+
+#### To add a new tab
+
+1. Create `Prompts/SelectionTab_<name>.txt` with the instruction text.
+2. Add `["<name>"] = Load("SelectionTab_<name>.txt")` to the dictionary in `AiPromptTemplates.cs`.
+3. Rebuild — the file is embedded automatically by the wildcard glob.
+
+---
+
+## 18. Shared EC2 Infrastructure
+
+> Added: 18 May 2026. Describes the actual production state where **KBot** and **Savismartboard** share a single EC2 instance.
+
+### 18.1 Overview
+
+Both apps run on **one EC2 instance** (`i-0d678aebfb32f889e`, `13.205.70.12`, `ap-south-1`).  
+This was a deliberate cost-saving decision during the pilot phase. The two apps use different process managers and are isolated at the port and memory level.
+
+| App | Domain | Process manager | Language / Runtime |
+|---|---|---|---|
+| KBot | `kbot.svais.net` | Docker Compose | Python (FastAPI) + Node.js (Next.js) + Qdrant |
+| Savismartboard | `teach.svais.net` | systemd | ASP.NET Core 8 / .NET 8 (Kestrel) |
+
+---
+
+### 18.2 Port Map (verified 18 May 2026 via `ss -tlnp`)
+
+| Port | Process | Purpose |
+|---|---|---|
+| `80` | docker-proxy (`saviknowledgebot-nginx-1`) | HTTP → HTTPS redirect for both domains |
+| `443` | docker-proxy (`saviknowledgebot-nginx-1`) | HTTPS gateway for both domains |
+| `5000` | dotnet (`smartboard-api`) | Smartboard API + SPA static files (Kestrel) |
+| `3000` | docker-proxy | KBot Next.js frontend |
+| `8000` | docker-proxy | KBot FastAPI backend |
+| `6333-6334` | Docker internal only | Qdrant vector DB (not exposed on host) |
+
+---
+
+### 18.3 nginx Architecture
+
+**There is one active nginx — the KBot Docker container `saviknowledgebot-nginx-1`.**  
+It holds ports 80 and 443 and routes for *both* domains.
+
+```
+Internet
+  │
+  ├─ :80  ─► saviknowledgebot-nginx-1 (Docker)
+  │              └─ redirect to HTTPS (both domains)
+  │
+  └─ :443 ─► saviknowledgebot-nginx-1 (Docker)
+               ├─ server_name kbot.svais.net
+               │    ├─ /api, /health, /docs  ──► backend:8000  (Docker DNS)
+               │    └─ /                     ──► frontend:3000 (Docker DNS)
+               │
+               └─ server_name teach.svais.net
+                    └─ /  (everything) ─────────► http://172.18.0.1:5000
+                                                  (Docker bridge gateway → host Kestrel)
+```
+
+**Key implementation detail:**  
+`172.18.0.1` is the standard Docker bridge gateway IP — the address the Docker nginx container uses to reach services running directly on the EC2 host. The Smartboard Kestrel process listening on `0.0.0.0:5000` is reachable at that address from inside any Docker container on the default bridge network.
+
+**Kestrel serves both the API and the React SPA:**  
+`Program.cs` uses `app.UseDefaultFiles()` + `app.UseStaticFiles()` + `app.MapFallbackToFile("index.html")`.  
+At build time (GitHub Actions), the React `dist/` output is embedded into the .NET publish output under `wwwroot/`, packaged in `api.tar.gz`, and deployed to `/opt/smartboard/api/wwwroot/`.  
+`/opt/smartboard/www/` is a reference copy only (kept for historical reasons by `deploy.sh`).
+
+**Host system nginx:** The system `nginx` package is installed (by `install.sh`) and there is a `smartboard.conf` in `/etc/nginx/conf.d/`, but the service is **inactive/failed** because Docker took ports 80 and 443 first. The host nginx plays no part in live traffic.
+
+---
+
+### 18.4 nginx Config — Where It Lives and Who Owns It
+
+The shared nginx config file is:
+```
+/opt/saviknowledgebot/deploy/nginx.conf   (on EC2)
+                     ↕ bind-mounted into Docker as
+/etc/nginx/conf.d/default.conf            (inside saviknowledgebot-nginx-1)
+```
+
+**This file is owned by the KBot project** (`saviknowledgebot` repo).  
+The `teach.svais.net` server blocks were **manually added directly on the EC2** — they are **not** currently committed in the `saviknowledgebot` git repository.
+
+The actual live `teach.svais.net` HTTPS block (as of 18 May 2026):
+```nginx
+server {
+    listen 443 ssl;
+    server_name teach.svais.net;
+
+    ssl_certificate     /etc/letsencrypt/live/teach.svais.net/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/teach.svais.net/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    location / {
+        proxy_pass         http://172.18.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+---
+
+### 18.5 SSL Certificates
+
+Both domains have separate Let's Encrypt certificates on the EC2:
+```
+/etc/letsencrypt/live/kbot.svais.net/
+/etc/letsencrypt/live/teach.svais.net/
+```
+
+Both are bind-mounted read-only into the Docker nginx container (`/etc/letsencrypt:/etc/letsencrypt:ro`).
+
+**Renewal:** Certbot must use **webroot mode** (not `--nginx` mode and not standalone) because:
+- The KBot Docker nginx already occupies port 80/443
+- There is a `/.well-known/acme-challenge/` block in the nginx config pointing to `/var/www/certbot` (which is the Docker volume `saviknowledgebot_certbot_webroot`)
+- After renewal, run `docker exec saviknowledgebot-nginx-1 nginx -s reload` to pick up the new certs
+
+---
+
+### 18.6 Deploy Interaction Between the Two Apps
+
+**Smartboard deploy (GitHub Actions → `deploy.sh`):**
+1. Rewrites `/opt/smartboard/env` with secrets
+2. Stops `smartboard-api` (systemd)
+3. Extracts `api.tar.gz` to `/opt/smartboard/api/` (includes `wwwroot/` with React SPA)
+4. Extracts `www.tar.gz` to `/opt/smartboard/www/` (reference copy, unused by Kestrel)
+5. Starts `smartboard-api` (systemd)
+6. Reloads Docker nginx: `docker exec saviknowledgebot-nginx-1 nginx -s reload`
+
+**Dependency:** Step 6 of Smartboard's deploy depends on KBot's Docker nginx container being alive.  
+If `saviknowledgebot-nginx-1` is not running, the reload silently skips (guarded by `&& … || true`).
+
+**KBot deploy (`docker compose up --profile production -d`):**
+- Recreates the nginx container from the base image — but the config is a bind-mount so changes in `/opt/saviknowledgebot/deploy/nginx.conf` are immediately picked up
+- Does NOT affect the Smartboard systemd service directly
+- However, during the few seconds the nginx container is recreating, both `kbot.svais.net` AND `teach.svais.net` are unreachable
+
+---
+
+### 18.7 Resource Isolation
+
+| Resource | KBot | Smartboard |
+|---|---|---|
+| Memory | No Docker `--memory` limit set | `MemoryMax=800M` (systemd) |
+| CPU | No Docker CPU limit | No cgroup CPU limit |
+| Storage | `/opt/saviknowledgebot/`, Docker volumes | `/opt/smartboard/` |
+| Network | Docker bridge (`saviknowledgebot_default`) | Host network (port 5000) |
+| Logs | Docker log driver (JSON file) | journald + `/opt/smartboard/logs/` |
+
+**RAM budget note:** The EC2 has ~4 GB RAM and 2 GB swap. KBot's Qdrant + FastAPI + Next.js typically uses ~1.5–2 GB. Smartboard's Kestrel is capped at 800 MB. Under peak AI usage on KBot, the system may approach memory limits and trigger swap use, degrading response times for both apps.
+
+---
+
+### 18.8 Known Conflicts and Risks
+
+#### CRITICAL — KBot deploy can silently break `teach.svais.net`
+
+The `teach.svais.net` nginx blocks were manually added to `/opt/saviknowledgebot/deploy/nginx.conf` on the EC2.  
+They are **not** in the `saviknowledgebot` git repository.
+
+**Impact:** If anyone runs `git pull` in `/opt/saviknowledgebot/` or redeploys KBot from the repo, the `nginx.conf` file will be overwritten with the version that only has `kbot.svais.net`. The Docker nginx will reload and `teach.svais.net` will return 404 or SSL mismatch errors.
+
+**Fix:** Commit the `teach.svais.net` server blocks into the `saviknowledgebot` repo's `deploy/nginx.conf` permanently.
+
+---
+
+#### MEDIUM — `172.18.0.1` Docker bridge gateway IP is implicit
+
+The `teach.svais.net` nginx block hard-codes `http://172.18.0.1:5000`. This is the standard Docker bridge gateway but:
+- It changes if Docker is reinstalled and creates a different bridge subnet
+- It changes if a custom Docker network with a different subnet is configured
+- If the Smartboard Kestrel binds only on localhost (`127.0.0.1:5000`), the Docker container can't reach it
+
+**Fix:** Keep Kestrel binding on `0.0.0.0:5000`. The binding is set via `Environment=ASPNETCORE_URLS=http://0.0.0.0:5000` in `/etc/systemd/system/smartboard-api.service` (not in `/opt/smartboard/env`). If EC2 is provisioned from an older version of the service file (with `localhost:5000`), patch it with:
+```bash
+sed -i 's|ASPNETCORE_URLS=http://localhost:5000|ASPNETCORE_URLS=http://0.0.0.0:5000|' /etc/systemd/system/smartboard-api.service
+systemctl daemon-reload && systemctl restart smartboard-api
+```
+
+> **This exact failure occurred on 21 May 2026** — EC2 had been provisioned with `localhost:5000` while the repo already had `0.0.0.0:5000`. Result: 502 on all paths, fixed by the above sed command.
+
+---
+
+#### LOW — Host system nginx is broken
+
+`systemctl is-active nginx` returns `failed`. The `install.sh` script installs and tries to start host nginx, but it cannot bind port 80 because Docker has it. The `install.sh` is therefore **idempotent but non-functional** for nginx on this shared EC2.
+
+The `install.sh` nginx steps can be removed or guarded with a Docker-presence check if the script is ever re-run.
+
+---
+
+#### LOW — SSL cert renewal for `teach.svais.net` is not automated
+
+KBot has a certbot renewal process for `kbot.svais.net`. The `teach.svais.net` cert was provisioned manually and must be renewed manually (or a renewal cron job must be added).
+
+Renewal command (run on EC2):
+```bash
+sudo certbot certonly --webroot -w /var/lib/docker/volumes/saviknowledgebot_certbot_webroot/_data \
+  -d teach.svais.net --non-interactive --agree-tos -m admin@svais.net
+sudo docker exec saviknowledgebot-nginx-1 nginx -s reload
+```
+
+---
+
+### 18.9 Troubleshooting Guide
+
+Use AWS SSM (`.\scripts\Invoke-Ssm.ps1` from the `saviknowledgebot` project directory) to run commands without SSH.
+
+#### `teach.svais.net` returns SSL error or "connection refused"
+
+```bash
+# Is Kestrel running?
+sudo systemctl status smartboard-api
+
+# Is Docker nginx running?
+docker ps | grep nginx
+
+# Are both server blocks in the live nginx config?
+grep server_name /opt/saviknowledgebot/deploy/nginx.conf
+
+# Is Kestrel listening on 5000?
+ss -tlnp | grep 5000
+
+# Can Docker nginx reach Kestrel? (run from inside container)
+docker exec saviknowledgebot-nginx-1 wget -qO- http://172.18.0.1:5000/healthz
+```
+
+#### `teach.svais.net` returns 502 on **all** paths (including `/login`, static files)
+
+Kestrel is running but bound to `127.0.0.1:5000` (loopback only). The Docker nginx container cannot reach a loopback-only socket via `172.18.0.1:5000`.
+
+```bash
+# Confirm: shows 127.0.0.1:5000 instead of 0.0.0.0:5000
+ss -tlnp | grep 5000
+
+# Fix
+sed -i 's|ASPNETCORE_URLS=http://localhost:5000|ASPNETCORE_URLS=http://0.0.0.0:5000|' /etc/systemd/system/smartboard-api.service
+systemctl daemon-reload && systemctl restart smartboard-api
+
+# Verify
+ss -tlnp | grep 5000   # should show 0.0.0.0:5000
+```
+
+---
+
+#### `teach.svais.net` loads but API calls fail (`/api/v1/...` returns 502)
+
+```bash
+# Check Kestrel logs
+journalctl -u smartboard-api -n 50 --no-pager
+
+# Check the env file has the DB connection string
+grep ConnectionStrings /opt/smartboard/env
+
+# Direct health check bypassing nginx
+curl http://localhost:5000/healthz
+```
+
+#### `kbot.svais.net` and `teach.svais.net` both unreachable
+
+```bash
+# Docker nginx is probably down — restart it
+docker ps -a | grep nginx
+cd /opt/saviknowledgebot && docker compose --profile production up -d nginx
+
+# After restart, verify both domains respond
+curl -k https://localhost -H "Host: teach.svais.net"
+```
+
+#### After a KBot `git pull` + redeploy, `teach.svais.net` breaks
+
+The `teach.svais.net` nginx blocks were overwritten. Re-add them manually:
+```bash
+# Edit nginx conf to re-add teach.svais.net blocks
+sudo nano /opt/saviknowledgebot/deploy/nginx.conf
+# Paste the server blocks from §18.4 above
+docker exec saviknowledgebot-nginx-1 nginx -t
+docker exec saviknowledgebot-nginx-1 nginx -s reload
+```
+
+#### Smartboard deploy step 6 ("nginx reload") fails
+
+This means `saviknowledgebot-nginx-1` is not running. The app still deploys correctly (steps 1–5 are independent). Fix by restarting the KBot Docker stack:
+```bash
+cd /opt/saviknowledgebot && docker compose --profile production up -d nginx
+```
+
+#### High memory / swap usage causing slow responses
+
+```bash
+free -h                        # check total / used / swap
+docker stats --no-stream       # per-container memory usage
+journalctl -u smartboard-api --since "10 minutes ago" -n 100 --no-pager  # any OOM events
+```
+
+---
+
+### 18.10 Startup and Recovery Order (EC2 reboot)
+
+On EC2 reboot, processes start in this order:
+1. Docker daemon (starts automatically)
+2. Docker Compose services (`saviknowledgebot-nginx-1`, `saviknowledgebot-backend-1`, etc.) via Docker's `restart: unless-stopped`
+3. `smartboard-api` systemd service (starts after `docker.service` by default dependency)
+
+**Result:** After reboot, the KBot Docker nginx holds port 80/443 before host nginx has any chance to start. Both apps should be live automatically.
+
+If `smartboard-api` fails to start (e.g., bad env file), run:
+```bash
+sudo systemctl start smartboard-api
+journalctl -u smartboard-api -n 30 --no-pager
+```
+
+---
+
+### 18.11 Future Improvements
+
+| Priority | Action |
+|---|---|
+| CRITICAL | Commit `teach.svais.net` nginx blocks into `saviknowledgebot` repo's `deploy/nginx.conf` |
+| HIGH | Add certbot renewal cron for `teach.svais.net` using webroot mode |
+| MEDIUM | Add Docker memory limit for KBot services in `docker-compose.yml` to prevent OOM impact on Smartboard |
+| LOW | Remove defunct host nginx steps from `install.sh` or guard them with a Docker-presence check |
+| FUTURE | Migrate to separate EC2s (or separate Docker containers) as load grows |
+
+---
+
+## 19. Teaching Sidebar — Expanded Right Panel Design
+
+> Added: 24 May 2026. Status: **Designed; not yet built.** Implementation starts at Phase 1.  
+> Based on prototype `manoj0525.html` — a complete 23-screen lesson mockup (Grade 10 NCERT Physics, Laws of Reflection), authored by Manohar.
+
+### 19.1 Vision
+
+The right 30% panel evolves from a single AI Assist tool (triggered only by lasso selection) into a **Teaching Sidebar** — a live, always-active teaching co-pilot that pre-loads topic content, tracks lesson progress, and surfaces the right card at the right moment.
+
+Three key principles from the prototype:
+
+1. **The right panel is alive before the teacher writes a word** — pre-loaded with topic-relevant cards from KBot on session start.
+2. **The system knows where the lesson is** — a 7-stop journey tracker lets the teacher and the right panel stay in sync.
+3. **AI is invisible** — content is surfaced as *cards*, not as a chat interface; the lasso AI Assist (§17) is one of four tabs, not the whole panel.
+
+---
+
+### 19.2 The 7-Stop Lesson Journey
+
+The lesson follows a structured 7-stop journey. Journey state lives in React client state. Whether it is also persisted to DB is an open question (§19.6 Q1).
+
+Each stop has a state: `ghost` (not yet reached) → `recommended` (next up) → `active` (current) → `active-repair` (repair card in use) → `done` (completed).
+
+| Stop # | Name | Teacher action on canvas | Right feed cards |
+|---|---|---|---|
+| 1 | Hook | Show relatable story card, collect student examples | 3 pre-loaded cards: local / national / universal example |
+| 2 | Anchor | Everyone-can-answer question (class vote) | Hint card, expected answer, "next stop" recommendation |
+| 3 | Concept | Step-by-step diagram build | Scaffold cards (one per build step), "next reveal" prompt |
+| 4 | Proof | Visual / dynamic proof, angle table | Prediction prompt, observe card, pattern summary |
+| 5 | Try It | Guided practice problem | Step-scaffold (step 1 / 2 / 3), "answer hidden" card |
+| 6 | Board | Student at board with hint ladder | Hint ladder (teacher reveals hints one by one) |
+| 7 | Close | Mastery check, recap, Class Win card | 3 mastery questions + expected answers, Class Win card |
+
+---
+
+### 19.3 Tab Structure
+
+```
+┌──────────────────────────────────┬──────────────────────────────────────────┐
+│                                  │  [ Laws of Reflection  ✎ Change topic ]  │  ← topic header
+│   WhiteboardCanvas (70%)         ├──────────────────────────────────────────┤
+│                                  │  📚 Content │ ❓ Questions │ 📝 Quiz │ 🧠 AI │
+│                                  ├──────────────────────────────────────────┤
+│                                  │  [ Journey dots: ①②③④⑤⑥⑦ ]             │
+│                                  │  ────────────────────────────────────    │
+│                                  │  [ Feed card  (active, teal) ]           │
+│                                  │  [ Feed card  (scaffold, blue) ]         │
+│                                  │  [ Feed card  (dimmed / ghost) ]         │
+│                                  │  ...                                     │
+│                                  │  [ Next stop → recommendation (green) ]  │
+└──────────────────────────────────┴──────────────────────────────────────────┘
+```
+
+#### Sidebar header — topic context + override
+
+The top of the sidebar always shows the **active topic title** and a pencil/search icon. Tapping it opens an inline search box:
+
+```
+[ 🔍 Search topics...  ×  ]      ← replaces header while searching
+  Laws of Reflection  1.0  ← result, click to switch
+  Refraction of Light 0.8
+  Echo & Reverberation 0.7
+```
+
+- Search calls `GET /api/v1/smartboard/kbot/topics/search?q={query}` (live on KBot, proxied through Smartboard API at `SmartboardKBotContentController`).
+- Selecting a result sets a new `activeTopic` state in `TeachingSidebar` (overrides the `slug` prop from the URL).
+- **The session itself is unchanged** — no page restart, no DB update. The sidebar simply re-fetches Content Cards and Questions for the new slug.
+- This allows a teacher who starts a session on "Laws of Reflection" but pivots mid-lesson to "Refraction" to reload the sidebar without ending the session.
+
+**KBot search response shape** (live — 24 May 2026):
+```json
+[
+  {
+    "slug": "reflection_laws",
+    "title": "Laws of Reflection and Plane Mirrors",
+    "board": "cbse",
+    "grade": 10,
+    "subject": "physics",
+    "chapter_title": "Light – Reflection and Refraction",
+    "floor_level": 3,
+    "relevance_score": 1.0,
+    "match_reason": "..."
+  }
+]
+```
+Frontend type: `KBotTopicSearchResult` (to be added to `types/index.ts`). Service method: `kbotContentService.searchTopics(q)` → `GET /smartboard/kbot/topics/search?q=...`.
+
+| Tab | Primary data source | Key teacher actions |
+|---|---|---|
+| 📚 Content Cards | `kbotContentService.topicCards(activeTopic.slug)` → `SmartboardKBotContentController` | Preview card; "Add to board" (creates new canvas page) |
+| ❓ Questions | `kbotQuestionService.list(activeTopic.slug)` → `SmartboardQuestionController` | Difficulty filter (All / Easy / Medium / Hard); checkbox to mark for Quiz tab |
+| 📝 Quiz | Checked questions from Questions tab — client state only, no backend needed | One question at a time; Prev / Next; "Show Answer" (panel-only reveal) |
+| 🧠 AI Assist | Lasso → `aiService.askSelection` → `SmartboardAiController` | 4 sub-tabs (Solution / Explain / Mistakes / Quiz); auto-activates on "Ask AI ✨" |
+
+---
+
+### 19.4 Card Types (right panel feed)
+
+| Card type | Accent colour | When it appears |
+|---|---|---|
+| Hook | Teal | Pre-loaded at session start; Stop 1 |
+| Scaffold / step | Blue (active) | Teacher advances to Stop 3 (Concept) or Stop 5 (Try It) |
+| Next stop recommendation | Green | Bottom of feed at all times |
+| Repair | Orange | Teacher manually triggers at any stop; journey dot turns `active-repair` |
+| Hint ladder | Purple | Stop 6 (Student at Board); teacher taps "Reveal next hint" one at a time |
+| Mastery check | Gold | Stop 7 |
+| Class Win | Gold-to-green gradient | Stop 7 Close |
+| Ghost (future stops) | Greyed-out | Visible but dimmed until the stop becomes active |
+
+Cards **accumulate** in the feed as the lesson progresses — old cards dim but do not disappear. Scrolling up reveals the full lesson history.
+
+---
+
+### 19.5 Card-to-Canvas Interactions
+
+| Interaction | Trigger | Result |
+|---|---|---|
+| Add to board (content card) | "Add to board" button in Content Cards tab | New canvas page with KBot HTML card as background |
+| Write on board (question) | "Write on board" button in Questions tab | Question text inserted as canvas text annotation at page centre |
+| Show on board (quiz answer) | "Show Answer" in Quiz tab | Panel-only reveal — or canvas (open question §19.6 Q3) |
+| Drag card to canvas | Stretch goal — **post-MVP** | Card placed inline on current canvas page |
+
+---
+
+### 19.6 Open Design Questions
+
+| # | Question | Decision |
+|---|---|---|
+| Q1 | **Journey state persistence** | Client-only for now (lost on refresh); revisit if teachers request session resume |
+| Q2 | **Hook card source** | KBot content cards at lowest `floor_level` returned by search endpoint |
+| Q3 | **Quiz answer reveal scope** | Panel-only reveal (simpler; avoids cluttering the board) |
+| Q4 | **Empty state / off-topic teaching** | ✅ **Resolved** — sidebar header shows topic search box. If session has no slug (blank board or old session), the search box is the default state. Teacher types topic name → `GET /kbot/topics/search?q=...` → picks a result → sidebar loads. No error, no session restart needed. |
+| Q5 | **Repair card source** | Teacher searches KBot via the topic search box and pins a content card as a repair card (Phase 4) |
+| Q6 | **Topic switch mid-session** | ✅ **Resolved** — not an error condition. Teacher taps ✎ in sidebar header, searches for the actual topic being taught, selects it. `activeTopic` state in `TeachingSidebar` overrides the URL slug; Content/Questions reload. Session record is unchanged. |
+
+---
+
+### 19.7 Backend Changes Required
+
+#### Phase 1–6 (sidebar + journey + interactive cards)
+
+| UI feature | Backend endpoint | Status |
+|---|---|---|
+| Content Cards tab | `GET /api/v1/smartboard/kbot/topics/{slug}/cards` | ✅ Ready |
+| Questions tab | `GET /api/v1/smartboard/kbot/topics/{slug}/questions` | ✅ Ready |
+| Quiz tab | Client state only | No backend needed |
+| AI Assist tab | `POST /api/v1/smartboard/ai/ask-selection` | ✅ Ready |
+| **Topic search / override** | `GET /api/v1/smartboard/kbot/topics/search?q={query}` | ✅ **Live on KBot 24 May 2026** — proxy already in `SmartboardKBotContentController` (Phase 1.5 adds frontend call) |
+
+> **Note on the search endpoint proxy:** KBot exposes `GET /topics/search?q=...`. The Smartboard API proxies it at `/api/v1/smartboard/kbot/topics/search?q=...` via `SmartboardKBotContentController`. The frontend calls it through `kbotContentService.searchTopics(q)`. No new backend code needed — Mukesh confirmed the KBot endpoint is live.
+
+#### Phase 7 additions (only if design decisions require them)
+| Addition | Trigger condition |
+|---|---|
+| `POST /api/v1/smartboard/ai/hook-cards` — AI-generate hook card one-liners + `Prompts/HookCards.txt` | Only if Q2 review determines KBot has no cards at `floor_level=1` for a topic |
+| `smartboard_repair_cards` table + endpoint | Deferred — Q5 resolved to use existing KBot content cards |
+| `POST /api/v1/smartboard/sessions/{id}/journey` — persist stop state | Only if Q1 is revisited and teachers request session resume |
+
+---
+
+### 19.8 Implementation Roadmap
+
+| Phase | Deliverable | Status | Key files to create / modify |
+|---|---|---|---|
+| **Phase 0** | Design decisions resolved (Q1–Q6 above) | ✅ Done | — discussion only |
+| **Phase 1** | 4-tab Teaching Sidebar shell; Content Cards, Questions, Quiz tabs working | ✅ Done — commit `7b2a450` | `TeachingSidebar.tsx`, `ContentCardsTab.tsx`, `QuestionsTab.tsx`, `QuizTab.tsx`; `SmartboardSessionPage.tsx` |
+| **Phase 1.5** | Topic search / override in sidebar header; `KBotTopicSearchResult` type; `kbotContentService.searchTopics()` | 🔴 Next | Modify: `TeachingSidebar.tsx`; add: `types/index.ts` (`KBotTopicSearchResult`); add method to `kbotContentService.ts` |
+| **Phase 2** | Journey tracker (7 dots, teacher-controlled stops) | 🔴 Not started | New: `JourneyDots.tsx`; journey state in `SmartboardSessionPage.tsx` |
+| **Phase 3** | Always-active right panel (pre-loaded feed, per-stop card logic) | 🔴 Not started | New: `FeedCardList.tsx`, `FeedCard.tsx`; session-start hooks |
+| **Phase 4** | Repair cards, hint ladder (Stop 6), mastery check (Stop 7) | 🔴 Not started | New card-type components |
+| **Phase 5** | Card-to-canvas interactions ("Add to board", "Write on board") | 🔴 Not started | Modify: `WhiteboardCanvas.tsx` (callback API); wire sidebar tabs |
+| **Phase 6** | Closure — Class Win card, scrollable session history | 🔴 Not started | Feed accumulation state; Class Win card component |
+| **Phase 7** | Backend additions (only if Phase 0 decisions require them) | 🔴 Conditional | New controller endpoints; optional DB migration |
+| **Phase 8** | Collapsible sidebar, keyboard navigation, pre-fetch optimisation, EC2 deploy | 🔴 Not started | All |
 
 ---
 
@@ -682,11 +1295,14 @@ frontend/
       questions/QuestionViewer.tsx                                   (Mukesh)
       questions/SolvedCardViewer.tsx                                 (Mukesh)
       questions/AnswerRevealPanel.tsx                                (Mukesh)
-      whiteboard/WhiteboardCanvas.tsx                                (Parivesh)
-      whiteboard/WhiteboardToolbar.tsx                               (Parivesh)
-      whiteboard/AnnotationLayer.tsx                                 (Parivesh)
-      whiteboard/PageNavigator.tsx                                   (Parivesh)
-      ai/AiAssistantPanel.tsx                                        (Parivesh)
+      canvas/WhiteboardCanvas.tsx                                    (Parivesh)
+      canvas/CanvasToolbar.tsx                                       (Parivesh)
+      canvas/PageStrip.tsx                                           (Parivesh)
+      canvas/AiAssistPanel.tsx                                       (Parivesh)
+      sidebar/TeachingSidebar.tsx        ← Phase 1 ✅               (Parivesh)
+      sidebar/ContentCardsTab.tsx        ← Phase 1 ✅               (Parivesh)
+      sidebar/QuestionsTab.tsx           ← Phase 1 ✅               (Parivesh)
+      sidebar/QuizTab.tsx                ← Phase 1 ✅               (Parivesh)
       sharing/ShareToPortalDialog.tsx                                (Manohar)
     services/
       savischoolsContextService.ts                                   (Manohar)

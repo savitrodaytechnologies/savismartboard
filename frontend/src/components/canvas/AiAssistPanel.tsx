@@ -2,6 +2,8 @@
 // Right panel (30%) of SmartboardSessionPage — shows AI responses for a teacher's lasso selection.
 // Teacher circles something on the canvas → clicks "Ask AI ✨" → this panel loads 4 tabs.
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { aiService } from '@/services/aiService';
 
 type Tab = 'solution' | 'explain' | 'mistakes' | 'quiz';
@@ -60,10 +62,14 @@ export default function AiAssistPanel({ query, sessionId }: Props) {
 
         setTabs(prev => ({ ...prev, [activeTab]: { status: 'loading', content: '' } }));
 
-        // Strip data URL prefix before sending
-        const base64 = query.dataUrl.replace(/^data:[^;]+;base64,/, '');
+        // Extract media type and strip data URL prefix before sending.
+        // It's critical to send the actual media type — Konva can return PNG even when
+        // JPEG is requested, and Claude rejects a JPEG-labelled payload that is actually PNG.
+        const mediaTypeMatch = query.dataUrl.match(/^data:([^;]+);base64,/);
+        const mediaType = mediaTypeMatch ? mediaTypeMatch[1] : 'image/jpeg';
+        const base64 = query.dataUrl.slice(query.dataUrl.indexOf(',') + 1);
 
-        aiService.askSelection(tabDef.instruction, base64, sessionId)
+        aiService.askSelection(tabDef.instruction, base64, sessionId, mediaType)
             .then((res: { result: string }) => {
                 setTabs(prev => ({ ...prev, [activeTab]: { status: 'done', content: res.result } }));
             })
@@ -145,7 +151,13 @@ export default function AiAssistPanel({ query, sessionId }: Props) {
                     <p className="text-rose-400">{current.content}</p>
                 )}
                 {current.status === 'done' && (
-                    <div className="whitespace-pre-wrap">{current.content}</div>
+                    <div className="prose prose-invert prose-sm max-w-none
+                        prose-p:my-1.5 prose-li:my-0.5 prose-ol:my-1 prose-ul:my-1
+                        prose-strong:text-slate-100 prose-headings:text-slate-200">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {current.content}
+                        </ReactMarkdown>
+                    </div>
                 )}
             </div>
         </div>

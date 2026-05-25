@@ -1,0 +1,4 @@
+Look at this board image. It may contain handwritten text, diagrams, or typed content.
+Identify the single academic topic or concept shown.
+Reply with ONLY a short topic name (2–5 words, e.g. "Laws of Reflection", "Linear Equations", "Photosynthesis").
+No explanation, no punctuation at the end, just the topic name.

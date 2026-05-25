@@ -9,6 +9,16 @@ namespace Smartboard.Api.Services.Dev;
 /// </summary>
 public sealed class DevKBotContentService : IKBotContentService
 {
+    public Task<IReadOnlyList<KBotTopicSearchResultDto>> SearchTopicsAsync(string query, CancellationToken ct = default)
+    {
+        // Dev stub — returns two fake results so the search UI can be tested without KBot running
+        IReadOnlyList<KBotTopicSearchResultDto> results = new[]
+        {
+            new KBotTopicSearchResultDto("reflection_laws", $"Laws of Reflection ({query})", "cbse", 10, "physics", "Light – Reflection and Refraction", 3, 1.0, "Dev stub match"),
+            new KBotTopicSearchResultDto("linear_equations", $"Linear Equations ({query})", "cbse",  8, "maths",   "Linear Equations in One Variable",      2, 0.7, "Dev stub match"),
+        };
+        return Task.FromResult(results);
+    }
     private static string Card(string title, string body) =>
         $"""
         <div class="kbot-card" style="font-family:sans-serif;padding:24px;max-width:900px">
@@ -45,7 +55,7 @@ public sealed class DevKBotContentService : IKBotContentService
     private static readonly (string Level, long CardId)[] _levels =
         [("L0", 1001), ("L1", 1002), ("L2", 2011), ("L3", 2012)];
 
-    public Task<TopicCardsDto?> GetTopicCardsAsync(string slug, CancellationToken ct = default)
+    public Task<TopicCardsDto?> GetTopicCardsAsync(string slug, string language = "en", string country = "in", string? state = null, CancellationToken ct = default)
     {
         var cards = _levels.Select(l => new CardLevelStatusDto(
             Level: l.Level,
@@ -62,6 +72,14 @@ public sealed class DevKBotContentService : IKBotContentService
             Cards: cards);
 
         return Task.FromResult<TopicCardsDto?>(dto);
+    }
+
+    public Task<RenderedCardDto?> GetCardByLevelAsync(string slug, string level, string language = "en", string country = "in", string? state = null, CancellationToken ct = default)
+    {
+        var levelUpper = level.ToUpperInvariant();
+        var match = _levels.FirstOrDefault(l => l.Level == levelUpper);
+        var cardId = match.CardId != 0 ? match.CardId : 1001;
+        return RenderAsync(cardId, null, ct);
     }
 
     public Task<IReadOnlyList<ContentCardVersionDto>> GetVersionsAsync(long cardId, CancellationToken ct = default)

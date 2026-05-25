@@ -9,11 +9,11 @@ namespace Smartboard.Api.Controllers;
 
 /// <summary>
 /// Auth + dev-helper endpoints.
-/// POST /api/dev/login  — hardcoded credentials login (placeholder until Savischools SSO).
-/// GET  /api/dev/token  — dev-only quick token (Development environment only).
+/// POST /api/v1/dev/login  — hardcoded credentials login (placeholder until Savischools SSO).
+/// GET  /api/v1/dev/token  — dev-only quick token (Development environment only).
 /// </summary>
 [ApiController]
-[Route("api/dev")]
+[Route("api/v1/dev")]
 public sealed class DevController : ControllerBase
 {
     private readonly IWebHostEnvironment _env;

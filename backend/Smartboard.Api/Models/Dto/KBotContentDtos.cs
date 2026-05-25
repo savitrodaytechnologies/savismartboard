@@ -25,3 +25,15 @@ public sealed record ContentCardVersionDto(
 
 /// <summary>Rendered HTML card ready for display. Returned by GET /cards/{card_id}/render.</summary>
 public sealed record RenderedCardDto(long CardId, long VersionId, string Html, int ViewportWidth, int ViewportHeight, string ETag);
+
+/// <summary>One result from GET /topics/search?q=. Fields mirror the KBot search response.</summary>
+public sealed record KBotTopicSearchResultDto(
+    string Slug,
+    string Title,
+    string? Board,
+    int? Grade,
+    string? Subject,
+    string? ChapterTitle,
+    int? FloorLevel,
+    double RelevanceScore,
+    string? MatchReason);
