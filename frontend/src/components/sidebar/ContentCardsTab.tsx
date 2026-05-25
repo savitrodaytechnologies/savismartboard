@@ -3,6 +3,34 @@ import { useEffect, useState } from 'react';
 import { kbotContentService } from '@/services/kbotContentService';
 import type { CardLevelStatus, RenderedCard } from '@/types';
 
+/**
+ * Scope all IDs in each SVG element to be unique within the document.
+ * KBot generates multiple SVGs per card and reuses gradient/marker IDs
+ * (e.g. "arrowGrad", "arrowhead") across them. In a single HTML document
+ * the first definition wins, so later SVGs use the wrong gradient colours.
+ * We prefix every id="…" definition and every url(#…) / href="#…" reference
+ * inside each <svg>…</svg> block with a per-SVG counter.
+ */
+function scopeSvgIds(html: string): string {
+    let counter = 0;
+    return html.replace(/<svg\b[\s\S]*?<\/svg>/gi, svgHtml => {
+        const prefix = `s${counter++}_`;
+        const ids = new Set<string>();
+        svgHtml.replace(/\bid="([^"]+)"/g, (_, id: string) => { ids.add(id); return _; });
+        if (ids.size === 0) return svgHtml;
+        let out = svgHtml;
+        for (const id of ids) {
+            const e = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            out = out
+                .replace(new RegExp(`\\bid="${e}"`, 'g'), `id="${prefix}${id}"`)
+                .replace(new RegExp(`url\\(#${e}\\)`, 'g'), `url(#${prefix}${id})`)
+                .replace(new RegExp(`href="#${e}"`, 'g'), `href="#${prefix}${id}"`)
+                .replace(new RegExp(`xlink:href="#${e}"`, 'g'), `xlink:href="#${prefix}${id}"`);
+        }
+        return out;
+    });
+}
+
 interface Props { slug: string; }
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -79,7 +107,7 @@ function CardViewer({ slug, card, onBack }: { slug: string; card: CardLevelStatu
                 )}
                 {rendered?.html && (
                     <iframe
-                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0">${rendered.html}</body></html>`}
+                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0">${scopeSvgIds(rendered.html)}</body></html>`}
                         sandbox="allow-scripts allow-same-origin"
                         style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                         title={`Card ${card.level}`}
