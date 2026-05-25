@@ -77,13 +77,18 @@ function CardViewer({ slug, card, onBack }: { slug: string; card: CardLevelStatu
                         Failed to load card.
                     </div>
                 )}
-                {rendered && (
+                {rendered?.html && (
                     <iframe
                         srcDoc={rendered.html}
                         sandbox="allow-scripts allow-same-origin"
                         style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                         title={`Card ${card.level}`}
                     />
+                )}
+                {rendered && !rendered.html && !loading && !error && (
+                    <div className="flex items-center justify-center h-full text-slate-400 text-sm bg-slate-900">
+                        No content available for this card.
+                    </div>
                 )}
             </div>
         </div>
