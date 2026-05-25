@@ -74,8 +74,15 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
             try {
                 const { result: topicName } = await aiService.identifyTopic(base64, mediaType);
                 if (!topicName?.trim()) return;
-                const results = await kbotContentService.searchTopics(topicName.trim());
+                const trimmed = topicName.trim();
+                const results = await kbotContentService.searchTopics(trimmed);
                 if (results.length === 0) return;
+                // Save AI-identified topic name to search history
+                setSearchHistory(h => {
+                    const next = [trimmed, ...h.filter(x => x !== trimmed)].slice(0, 10);
+                    localStorage.setItem('sb:search-history', JSON.stringify(next));
+                    return next;
+                });
                 const top = results[0];
                 const current = activeTopicRef.current;
                 // Push old topic to history before switching (skip if same topic)
