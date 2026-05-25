@@ -79,7 +79,7 @@ function CardViewer({ slug, card, onBack }: { slug: string; card: CardLevelStatu
                 )}
                 {rendered?.html && (
                     <iframe
-                        srcDoc={rendered.html}
+                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0">${rendered.html}</body></html>`}
                         sandbox="allow-scripts allow-same-origin"
                         style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                         title={`Card ${card.level}`}
