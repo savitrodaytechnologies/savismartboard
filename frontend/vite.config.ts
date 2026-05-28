@@ -63,6 +63,12 @@ export default defineConfig({
                 target: 'http://localhost:5105',
                 changeOrigin: true,
                 secure: false
+            },
+            '/savischools': {
+                target: 'https://localhost:64175',
+                changeOrigin: true,
+                secure: false,
+                rewrite: (path) => path.replace(/^\/savischools/, '')
             }
         }
     }

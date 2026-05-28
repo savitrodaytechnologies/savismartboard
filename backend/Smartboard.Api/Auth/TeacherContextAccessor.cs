@@ -5,7 +5,7 @@ namespace Smartboard.Api.Auth;
 public interface ITeacherContextAccessor
 {
     int SchoolId { get; }
-    int TeacherId { get; }
+    int TeacherId { get; }   // int for Smartboard session DB scoping
 }
 
 public sealed class TeacherContextAccessor : ITeacherContextAccessor
@@ -16,13 +16,8 @@ public sealed class TeacherContextAccessor : ITeacherContextAccessor
     public TeacherContextAccessor(IHttpContextAccessor http)
     {
         var user = http.HttpContext?.User;
-        SchoolId = ParseClaim(user, "school_id");
-        TeacherId = ParseClaim(user, "teacher_id");
-    }
-
-    private static int ParseClaim(ClaimsPrincipal? user, string type)
-    {
-        var v = user?.FindFirst(type)?.Value;
-        return int.TryParse(v, out var n) ? n : 0;
+        SchoolId  = int.TryParse(user?.FindFirst("school_id")?.Value, out var sid) ? sid : 0;
+        // teacher_id is a GUID in Savischools JWT; session DB uses int — parse to 0 until schema migrated
+        TeacherId = int.TryParse(user?.FindFirst("teacher_id")?.Value, out var tid) ? tid : 0;
     }
 }

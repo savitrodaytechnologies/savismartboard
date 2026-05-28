@@ -84,7 +84,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<ITeacherContextAccessor, TeacherContextAccessor>();
 
 // HTTP clients with Polly retry
-builder.Services.AddHttpClient<ISavischoolsClient, SavischoolsClient>()
+// Savischools: 5s timeout so a down service fails fast (not 100s)
+builder.Services.AddHttpClient<ISavischoolsClient, SavischoolsClient>(c => c.Timeout = TimeSpan.FromSeconds(5))
     .AddPolicyHandler(HttpPolicies.Retry());
 builder.Services.AddHttpClient<IKBotClient, KBotClient>()
     .AddPolicyHandler(HttpPolicies.Retry());
@@ -94,10 +95,10 @@ builder.Services.AddHttpClient("ai").AddPolicyHandler(HttpPolicies.Retry());
 // HybridAiClient: DeepSeek for text-only, Anthropic (copilot) for vision — routes per call
 builder.Services.AddSingleton<IAiClient, HybridAiClient>();
 
-// Domain services — dev uses local mocks so Parivesh can work without Savischools or KBot
+// Domain services — dev uses SmartboardContextService (real Savischools) but fake KBot mocks
 if (builder.Environment.IsDevelopment())
 {
-    builder.Services.AddScoped<ISmartboardContextService, DevSmartboardContextService>();
+    builder.Services.AddScoped<ISmartboardContextService, SmartboardContextService>();
     builder.Services.AddScoped<IKBotContentService, DevKBotContentService>();
     builder.Services.AddScoped<IKBotQuestionService, DevKBotQuestionService>();
     builder.Services.AddScoped<IKBotCurriculumService, DevKBotCurriculumService>();

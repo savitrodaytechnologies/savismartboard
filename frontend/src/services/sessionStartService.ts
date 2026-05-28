@@ -9,8 +9,8 @@ import { smartboardSessionService } from '@/services/smartboardSessionService';
 import { enqueue, processQueue } from '@/services/syncService';
 
 interface StartParams {
-    classId: number;
-    subjectId: number;
+    classId: string;
+    subjectId: string;
     topicId?: number | null;
     sessionTitle: string;
 }

@@ -5,7 +5,7 @@ using Smartboard.Api.Services;
 namespace Smartboard.Api.Controllers;
 
 [ApiController]
-[AllowAnonymous]
+[Authorize]
 [Route("api/v1/smartboard")]
 public sealed class SmartboardContextController : ControllerBase
 {
@@ -19,15 +19,15 @@ public sealed class SmartboardContextController : ControllerBase
     public async Task<IActionResult> GetClasses(CancellationToken ct) => Ok(await _svc.GetClassesAsync(ct));
 
     [HttpGet("sections")]
-    public async Task<IActionResult> GetSections([FromQuery] int classId, CancellationToken ct)
+    public async Task<IActionResult> GetSections([FromQuery] Guid classId, CancellationToken ct)
         => Ok(await _svc.GetSectionsAsync(classId, ct));
 
     [HttpGet("subjects")]
-    public async Task<IActionResult> GetSubjects([FromQuery] int classId, CancellationToken ct)
+    public async Task<IActionResult> GetSubjects([FromQuery] Guid classId, CancellationToken ct)
         => Ok(await _svc.GetSubjectsAsync(classId, ct));
 
     [HttpGet("topics")]
-    public async Task<IActionResult> GetTopics([FromQuery] int subjectId, [FromQuery] int classId, CancellationToken ct)
+    public async Task<IActionResult> GetTopics([FromQuery] Guid subjectId, [FromQuery] Guid classId, CancellationToken ct)
         => Ok(await _svc.GetTopicsAsync(subjectId, classId, ct));
 
     [HttpPost("syllabus/topics/{topicId:int}/mark-taught")]

@@ -7,10 +7,10 @@ export interface TeacherContext {
     teacherName: string;
 }
 
-export interface ClassDto { classId: number; name: string; }
+export interface ClassDto { classId: string; name: string; }
 export interface SectionDto { sectionId: number; name: string; }
-export interface SubjectDto { subjectId: number; name: string; }
-export interface TopicDto { topicId: number; name: string; subjectId: number; slug: string; }
+export interface SubjectDto { subjectId: string; name: string; }
+export interface TopicDto { topicId: number; name: string; subjectId: string; slug: string; }
 
 export interface CardLevelStatus { level: string; exists: boolean; cardId: number | null; currentVersionId: number | null; versionCount: number | null; isPublished: boolean; isStale: boolean; }
 export interface TopicCardsDto { slug: string; title: string; cards: CardLevelStatus[]; }

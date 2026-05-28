@@ -1,6 +1,6 @@
 namespace Smartboard.Api.Models.Dto;
 
-public sealed record StartSessionRequest(int ClassId, int? SectionId, int SubjectId, int? TopicId, string SessionTitle);
+public sealed record StartSessionRequest(Guid ClassId, int? SectionId, Guid SubjectId, int? TopicId, string SessionTitle);
 public sealed record RenameSessionRequest(string Title);
 public sealed record SessionDto(long SessionId, string Status, DateTime StartedAt, DateTime? EndedAt, IReadOnlyList<SessionPageDto> Pages, string? SessionTitle = null);
 // PageJson is nullable: after a session ends the JSON blob is moved to S3 (see PageJsonUrl).

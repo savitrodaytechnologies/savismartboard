@@ -153,8 +153,8 @@ export function useSmartboardSession(sessionId: number | string) {
                     status: session.status as 'InProgress' | 'Ended',
                     startedAt: new Date().toISOString(),
                     sessionTitle: '',
-                    classId: 0,
-                    subjectId: 0,
+                    classId: '',
+                    subjectId: '',
                     syncStatus: 'synced',
                     updatedAt: new Date().toISOString(),
                 });

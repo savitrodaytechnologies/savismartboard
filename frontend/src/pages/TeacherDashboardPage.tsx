@@ -52,14 +52,15 @@ export default function TeacherDashboardPage() {
             sessionTitle: s.sessionTitle,
         }))));
     }
-    // Load classes on mount
+    // Load classes once on mount
     useEffect(() => {
-        if (isOnline) {
-            savischoolsContextService.getClasses()
-                .then((data: ClassDto[]) => setClasses(data))
-                .catch(() => setClasses([]));
-        }
+        savischoolsContextService.getClasses()
+            .then((data: ClassDto[]) => setClasses(data))
+            .catch(() => setClasses([]));
+    }, []);
 
+    // Load sessions (and re-load when connectivity changes)
+    useEffect(() => {
         setSessionsLoading(true);
         if (isOnline) {
             (async () => {
@@ -78,8 +79,8 @@ export default function TeacherDashboardPage() {
                                     status: s.status as 'InProgress' | 'Ended',
                                     startedAt: s.startedAt,
                                     sessionTitle: s.sessionTitle ?? `Session #${s.sessionId}`,
-                                    classId: 0,
-                                    subjectId: 0,
+                                    classId: '',
+                                    subjectId: '',
                                     syncStatus: 'synced',
                                     updatedAt: s.startedAt,
                                 });
@@ -217,8 +218,8 @@ export default function TeacherDashboardPage() {
     function handleBrowseTopic() {
         if (!selectedClass || !selectedSubject || !selectedTopic) return;
         const params = new URLSearchParams({
-            classId: String(selectedClass.classId),
-            subjectId: String(selectedSubject.subjectId),
+            classId: selectedClass.classId,
+            subjectId: selectedSubject.subjectId,
             slug: selectedTopic.slug,
             title: `${selectedSubject.name} — ${selectedTopic.name}`,
         });
@@ -268,7 +269,7 @@ export default function TeacherDashboardPage() {
                             <select
                                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 value={selectedClass?.classId ?? ''}
-                                onChange={e => setSelectedClass(classes.find(c => c.classId === Number(e.target.value)) ?? null)}
+                                onChange={e => setSelectedClass(classes.find(c => c.classId === e.target.value) ?? null)}
                             >
                                 <option value="">Select class…</option>
                                 {classes.map(c => <option key={c.classId} value={c.classId}>{c.name}</option>)}
@@ -282,7 +283,7 @@ export default function TeacherDashboardPage() {
                                 disabled={!selectedClass}
                                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                                 value={selectedSubject?.subjectId ?? ''}
-                                onChange={e => setSelectedSubject(subjects.find(s => s.subjectId === Number(e.target.value)) ?? null)}
+                                onChange={e => setSelectedSubject(subjects.find(s => s.subjectId === e.target.value) ?? null)}
                             >
                                 <option value="">Select subject…</option>
                                 {subjects.map(s => <option key={s.subjectId} value={s.subjectId}>{s.name}</option>)}

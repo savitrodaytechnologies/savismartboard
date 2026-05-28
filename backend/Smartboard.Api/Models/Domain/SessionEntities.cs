@@ -5,9 +5,9 @@ public sealed class SmartboardSession
     public long SessionId { get; set; }
     public int SchoolId { get; set; }
     public int TeacherId { get; set; }
-    public int ClassId { get; set; }
+    public Guid ClassId { get; set; }
     public int? SectionId { get; set; }
-    public int SubjectId { get; set; }
+    public Guid SubjectId { get; set; }
     public int? TopicId { get; set; }
     public string SessionTitle { get; set; } = "";
     public DateTime SessionDate { get; set; }

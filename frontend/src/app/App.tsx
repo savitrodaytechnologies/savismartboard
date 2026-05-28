@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import LoginPage, { isLoggedIn } from '@/pages/LoginPage';
+import RegisterPage from '@/pages/RegisterPage';
 import TeacherDashboardPage from '@/pages/TeacherDashboardPage';
 import TopicTeachingPage from '@/pages/TopicTeachingPage';
 import SmartboardSessionPage from '@/pages/SmartboardSessionPage';
@@ -30,6 +31,7 @@ export default function App() {
         <>
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
                 <Route path="/" element={<Navigate to={isLoggedIn() ? '/dashboard' : '/login'} replace />} />
                 <Route path="/dashboard" element={<RequireAuth><TeacherDashboardPage /></RequireAuth>} />
                 <Route path="/teach/:topicId" element={<RequireAuth><TopicTeachingPage /></RequireAuth>} />

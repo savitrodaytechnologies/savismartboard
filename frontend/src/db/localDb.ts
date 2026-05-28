@@ -8,8 +8,8 @@ export interface LocalSession {
     status: 'InProgress' | 'Ended';
     startedAt: string;                 // ISO string
     sessionTitle: string;
-    classId: number;
-    subjectId: number;
+    classId: string;
+    subjectId: string;
     topicId?: number | null;
     syncStatus: 'synced' | 'pending';
     updatedAt: string;
@@ -32,7 +32,7 @@ export interface LocalPage {
 
 // ─── Sync queue ───────────────────────────────────────────────────────────────
 export type SyncOperation =
-    | { op: 'createSession'; payload: { localId: string; classId: number; subjectId: number; topicId?: number | null; sessionTitle: string } }
+    | { op: 'createSession'; payload: { localId: string; classId: string; subjectId: string; topicId?: number | null; sessionTitle: string } }
     | { op: 'savePage'; payload: { sessionId: number | string; pageNo: number; pageType: string; sourceType: string | null; sourceId: number | null; sourceVersionId: number | null; pageJson: string; revision: number } }
     | { op: 'endSession'; payload: { sessionId: number | string } };
 

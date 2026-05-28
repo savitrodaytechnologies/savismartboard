@@ -2,11 +2,11 @@ namespace Smartboard.Api.Models.Dto;
 
 public sealed record TeacherContextDto(
     int SchoolId,
-    int TeacherId,
+    string TeacherId,     // GUID string from Savischools staffId
     string SchoolName,
     string TeacherName);
 
-public sealed record ClassDto(int ClassId, string Name);
+public sealed record ClassDto(Guid ClassId, string Name);
 public sealed record SectionDto(int SectionId, string Name);
-public sealed record SubjectDto(int SubjectId, string Name);
-public sealed record TopicDto(int TopicId, string Name, int SubjectId, string Slug = "");
+public sealed record SubjectDto(Guid SubjectId, string Name);
+public sealed record TopicDto(int TopicId, string Name, Guid SubjectId, string Slug = "");

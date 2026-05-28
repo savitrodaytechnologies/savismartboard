@@ -15,8 +15,8 @@ export default function TopicTeachingPage() {
     const slug = searchParams.get('slug') ?? '';
 
     const sessionTitle = searchParams.get('title') ?? `Topic ${tid}`;
-    const subjectId = Number(searchParams.get('subjectId') ?? 0);
-    const classId = Number(searchParams.get('classId') ?? 0);
+    const subjectId = searchParams.get('subjectId') ?? '';
+    const classId = searchParams.get('classId') ?? '';
 
     const [cards, setCards] = useState<CardLevelStatus[]>([]);
     const [questions, setQuestions] = useState<QuestionSummary[]>([]);
