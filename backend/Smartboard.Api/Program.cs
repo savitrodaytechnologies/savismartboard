@@ -122,6 +122,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Savismartboard API", Version = "v1" });
+    // Use full type names (replace '+' for nested types) to avoid schema id collisions
+    c.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace('+', '.'));
     // Adds a Bearer token input box in Swagger UI
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
