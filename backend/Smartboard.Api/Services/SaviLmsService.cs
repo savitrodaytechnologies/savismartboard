@@ -460,10 +460,10 @@ public sealed class SaviLmsService : ISaviLmsService
             const string insertPaperSql = @"
                 INSERT INTO dbo.LmsQuestionPapers (
                     SchoolId, SchoolName, SchoolAddress, SchoolPhone, Title, Duration, TotalMarks, Difficulty, QuestionCount, PaperSets, 
-                    QuestionType, Mode, BoardId, GradeId, SubjectId, PaperSetString, AnswerKeyJson, Status, CreatedOn, UpdatedOn, PaperSetId
+                    QuestionType, Mode, BoardId, GradeId, SubjectId, PaperSetString, AnswerKeyJson, Status, CreatedOn, UpdatedOn, PaperSetId, PaperGroupId
                 ) VALUES (
                     @SchoolId, @SchoolName, @SchoolAddress, @SchoolPhone, @Title, @Duration, @TotalMarks, @Difficulty, @QuestionCount, @PaperSets, 
-                    @QuestionType, @Mode, @BoardId, @GradeId, @SubjectId, @PaperSetString, @AnswerKeyJson, 'Active', GETDATE(), GETDATE(), @PaperSetId
+                    @QuestionType, @Mode, @BoardId, @GradeId, @SubjectId, @PaperSetString, @AnswerKeyJson, 'Active', GETDATE(), GETDATE(), @PaperSetId, @PaperGroupId
                 );
                 SELECT CAST(SCOPE_IDENTITY() as bigint);";
 
@@ -487,10 +487,18 @@ public sealed class SaviLmsService : ISaviLmsService
                     SubjectId = request.Selection.SubjectId,
                     PaperSetString = request.Paper.PaperSetString,
                     AnswerKeyJson = request.Paper.AnswerKeyJson,
-                    PaperSetId = generatedPaperSetId
+                    PaperSetId = generatedPaperSetId,
+                    PaperGroupId = request.Paper.PaperGroupId
                 },
                 transaction: transaction,
                 cancellationToken: ct));
+
+            if (string.IsNullOrWhiteSpace(request.Paper.PaperGroupId))
+            {
+                string newGroupId = "PG" + paperId;
+                const string updateGroupSql = "UPDATE dbo.LmsQuestionPapers SET PaperGroupId = @GroupId WHERE QuestionPaperId = @Id";
+                await conn.ExecuteAsync(new CommandDefinition(updateGroupSql, new { GroupId = newGroupId, Id = paperId }, transaction: transaction, cancellationToken: ct));
+            }
 
             // 2. Insert into LmsQuestionPaperSections
             var sectionIdMap = new Dictionary<string, long>();
@@ -574,7 +582,7 @@ public sealed class SaviLmsService : ISaviLmsService
         using var conn = _db.Create();
         const string sql = @"
             SELECT QuestionPaperId, SchoolId, SchoolName, SchoolAddress, SchoolPhone, Title, Duration, TotalMarks, Difficulty, QuestionCount, 
-                   PaperSets, QuestionType, Mode, BoardId, GradeId, SubjectId, Status, CreatedOn, PaperSetString, AnswerKeyJson, PaperSetId
+                   PaperSets, QuestionType, Mode, BoardId, GradeId, SubjectId, Status, CreatedOn, PaperSetString, AnswerKeyJson, PaperSetId, PaperGroupId
             FROM dbo.LmsQuestionPapers
             WHERE SchoolId = @schoolId
             ORDER BY QuestionPaperId DESC";
@@ -590,7 +598,7 @@ public sealed class SaviLmsService : ISaviLmsService
         using var conn = _db.Create();
         const string paperSql = @"
             SELECT QuestionPaperId, SchoolId, SchoolName, SchoolAddress, SchoolPhone, Title, Duration, TotalMarks, Difficulty, QuestionCount, 
-                   PaperSets, QuestionType, Mode, BoardId, GradeId, SubjectId, Status, CreatedOn, PaperSetString, AnswerKeyJson, PaperSetId
+                   PaperSets, QuestionType, Mode, BoardId, GradeId, SubjectId, Status, CreatedOn, PaperSetString, AnswerKeyJson, PaperSetId, PaperGroupId
             FROM dbo.LmsQuestionPapers
             WHERE QuestionPaperId = @paperId";
 
@@ -733,6 +741,18 @@ public sealed class SaviLmsService : ISaviLmsService
         }
         
         return new LmsTokenResponseDto(false, "Invalid Secret Key.", null, null, null, null, null);
+    }
+
+    public async Task<IReadOnlyList<string>> GetPaperGroupsBySchoolAsync(string schoolId, CancellationToken ct = default)
+    {
+        using var conn = _db.Create();
+        const string sql = @"
+            SELECT DISTINCT PaperGroupId 
+            FROM dbo.LmsQuestionPapers 
+            WHERE SchoolId = @schoolId AND PaperGroupId IS NOT NULL AND PaperGroupId <> ''";
+
+        var groups = await conn.QueryAsync<string>(new CommandDefinition(sql, new { schoolId }, cancellationToken: ct));
+        return groups.ToList();
     }
 
     private static string Truncate(string s, int maxLen) =>

@@ -17,7 +17,8 @@ public sealed record LmsPaperSubmitPaperMetaDto(
     string Mode,
     string? PaperSetString = null,
     string? AnswerKeyJson = null,
-    string? PaperSetId = null);
+    string? PaperSetId = null,
+    string? PaperGroupId = null);
 
 public sealed record LmsPaperSubmitSectionDto(
     string Id,
@@ -73,7 +74,8 @@ public sealed record LmsPaperListItemDto(
     DateTime CreatedOn,
     string? PaperSetString = null,
     string? AnswerKeyJson = null,
-    string? PaperSetId = null);
+    string? PaperSetId = null,
+    string? PaperGroupId = null);
 
 
 public sealed record LmsPaperDetailSectionDto(

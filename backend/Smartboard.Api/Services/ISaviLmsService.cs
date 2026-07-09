@@ -37,6 +37,9 @@ public interface ISaviLmsService
     /// <summary>Gets full details of a specific question paper by ID.</summary>
     Task<LmsPaperDetailDto?> GetQuestionPaperByIdAsync(long paperId, CancellationToken ct = default);
 
+    /// <summary>Gets unique paper group IDs for a specific school.</summary>
+    Task<IReadOnlyList<string>> GetPaperGroupsBySchoolAsync(string schoolId, CancellationToken ct = default);
+
     /// <summary>Authenticates a school using schoolId and apiKey.</summary>
     Task<LmsTokenResponseDto> AuthenticateSchoolAsync(LmsTokenRequestDto request, CancellationToken ct = default);
 }

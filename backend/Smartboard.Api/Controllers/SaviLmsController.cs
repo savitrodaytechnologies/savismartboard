@@ -62,6 +62,14 @@ public sealed class SaviLmsController : ControllerBase
     public async Task<IActionResult> GetQuestionPaper(long paperId, CancellationToken ct)
         => (await _svc.GetQuestionPaperByIdAsync(paperId, ct)) is { } paper ? Ok(paper) : NotFound();
 
+    [HttpGet("paper-groups")]
+    public async Task<IActionResult> GetPaperGroups([FromQuery] string schoolId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(schoolId))
+            return BadRequest("SchoolId is required.");
+        return Ok(await _svc.GetPaperGroupsBySchoolAsync(schoolId, ct));
+    }
+
     [AllowAnonymous]
     [HttpPost("auth/token")]
     public async Task<IActionResult> AuthenticateSchool([FromBody] LmsTokenRequestDto? request, CancellationToken ct)
