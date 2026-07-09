@@ -447,13 +447,23 @@ public sealed class SaviLmsService : ISaviLmsService
         try
         {
             // 1. Insert into LmsQuestionPapers
+            string generatedPaperSetId = "A";
+            if (!string.IsNullOrWhiteSpace(request.Paper.PaperSetString))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(request.Paper.PaperSetString, @"\d+");
+                if (match.Success && int.TryParse(match.Value, out int setNumber) && setNumber > 0)
+                {
+                    generatedPaperSetId = ((char)('A' + ((setNumber - 1) % 26))).ToString();
+                }
+            }
+
             const string insertPaperSql = @"
                 INSERT INTO dbo.LmsQuestionPapers (
                     SchoolId, SchoolName, SchoolAddress, SchoolPhone, Title, Duration, TotalMarks, Difficulty, QuestionCount, PaperSets, 
-                    QuestionType, Mode, BoardId, GradeId, SubjectId, PaperSetString, AnswerKeyJson, Status, CreatedOn, UpdatedOn
+                    QuestionType, Mode, BoardId, GradeId, SubjectId, PaperSetString, AnswerKeyJson, Status, CreatedOn, UpdatedOn, PaperSetId
                 ) VALUES (
                     @SchoolId, @SchoolName, @SchoolAddress, @SchoolPhone, @Title, @Duration, @TotalMarks, @Difficulty, @QuestionCount, @PaperSets, 
-                    @QuestionType, @Mode, @BoardId, @GradeId, @SubjectId, @PaperSetString, @AnswerKeyJson, 'Active', GETDATE(), GETDATE()
+                    @QuestionType, @Mode, @BoardId, @GradeId, @SubjectId, @PaperSetString, @AnswerKeyJson, 'Active', GETDATE(), GETDATE(), @PaperSetId
                 );
                 SELECT CAST(SCOPE_IDENTITY() as bigint);";
 
@@ -476,7 +486,8 @@ public sealed class SaviLmsService : ISaviLmsService
                     GradeId = request.Selection.GradeId,
                     SubjectId = request.Selection.SubjectId,
                     PaperSetString = request.Paper.PaperSetString,
-                    AnswerKeyJson = request.Paper.AnswerKeyJson
+                    AnswerKeyJson = request.Paper.AnswerKeyJson,
+                    PaperSetId = generatedPaperSetId
                 },
                 transaction: transaction,
                 cancellationToken: ct));
@@ -563,7 +574,7 @@ public sealed class SaviLmsService : ISaviLmsService
         using var conn = _db.Create();
         const string sql = @"
             SELECT QuestionPaperId, SchoolId, SchoolName, SchoolAddress, SchoolPhone, Title, Duration, TotalMarks, Difficulty, QuestionCount, 
-                   PaperSets, QuestionType, Mode, BoardId, GradeId, SubjectId, Status, CreatedOn, PaperSetString, AnswerKeyJson
+                   PaperSets, QuestionType, Mode, BoardId, GradeId, SubjectId, Status, CreatedOn, PaperSetString, AnswerKeyJson, PaperSetId
             FROM dbo.LmsQuestionPapers
             WHERE SchoolId = @schoolId
             ORDER BY QuestionPaperId DESC";
@@ -579,7 +590,7 @@ public sealed class SaviLmsService : ISaviLmsService
         using var conn = _db.Create();
         const string paperSql = @"
             SELECT QuestionPaperId, SchoolId, SchoolName, SchoolAddress, SchoolPhone, Title, Duration, TotalMarks, Difficulty, QuestionCount, 
-                   PaperSets, QuestionType, Mode, BoardId, GradeId, SubjectId, Status, CreatedOn, PaperSetString, AnswerKeyJson
+                   PaperSets, QuestionType, Mode, BoardId, GradeId, SubjectId, Status, CreatedOn, PaperSetString, AnswerKeyJson, PaperSetId
             FROM dbo.LmsQuestionPapers
             WHERE QuestionPaperId = @paperId";
 
