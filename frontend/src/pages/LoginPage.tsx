@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/apiClient';
+import { GoogleLogin } from '@react-oauth/google';
 import type { AxiosError } from 'axios';
 
 interface LoginResponse {
@@ -49,6 +50,21 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [error,    setError]    = useState('');
     const [loading,  setLoading]  = useState(false);
+
+    async function handleGoogleSuccess(credential: string) {
+        setError('');
+        setLoading(true);
+        try {
+            const res = await api.post<LoginResponse>('/auth/google', { idToken: credential });
+            saveSession(res.data);
+            navigate('/dashboard', { replace: true });
+        } catch (err) {
+            const ae = err as AxiosError<{ error?: string }>;
+            setError(ae.response?.data?.error ?? 'Google sign-in failed.');
+        } finally {
+            setLoading(false);
+        }
+    }
 
     async function handleLogin(e: FormEvent) {
         e.preventDefault();
@@ -155,6 +171,26 @@ export default function LoginPage() {
                                 {loading ? 'Signing in…' : 'Sign in'}
                             </button>
                         </form>
+
+                        {/* Google sign-in */}
+                        <div className="mt-5 flex items-center gap-3">
+                            <span className="flex-1 h-px bg-white/10" />
+                            <span className="text-xs text-slate-500 uppercase tracking-wide">or</span>
+                            <span className="flex-1 h-px bg-white/10" />
+                        </div>
+                        <div className="mt-4 flex justify-center">
+                            <GoogleLogin
+                                onSuccess={res => {
+                                    if (res.credential) handleGoogleSuccess(res.credential);
+                                }}
+                                onError={() => setError('Google sign-in failed.')}
+                                useOneTap={false}
+                                shape="rectangular"
+                                size="large"
+                                text="signin_with"
+                                logo_alignment="left"
+                            />
+                        </div>
 
                         <p className="mt-5 text-center text-sm text-slate-400">
                             New to AiGurukul?{' '}

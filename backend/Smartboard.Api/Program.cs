@@ -84,8 +84,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<ITeacherContextAccessor, TeacherContextAccessor>();
 
 // HTTP clients with Polly retry
-// Savischools: 5s timeout so a down service fails fast (not 100s)
-builder.Services.AddHttpClient<ISavischoolsClient, SavischoolsClient>(c => c.Timeout = TimeSpan.FromSeconds(5))
+// Savischools: 30s timeout (AWS SES email sending can take up to ~10s)
+builder.Services.AddHttpClient<ISavischoolsClient, SavischoolsClient>(c => c.Timeout = TimeSpan.FromSeconds(30))
     .AddPolicyHandler(HttpPolicies.Retry());
 builder.Services.AddHttpClient<IKBotClient, KBotClient>()
     .AddPolicyHandler(HttpPolicies.Retry());
@@ -153,6 +153,7 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI();
 }

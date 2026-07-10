@@ -9,6 +9,7 @@ public interface ISavischoolsClient
     Task<HttpResponseMessage> GetAsync(string path, CancellationToken ct = default);
     Task<HttpResponseMessage> GetMeAsync(CancellationToken ct = default);
     Task<HttpResponseMessage> PostAsync<T>(string path, T body, CancellationToken ct = default);
+    Task<HttpResponseMessage> PutAsync<T>(string path, T body, CancellationToken ct = default);
 }
 
 public sealed class SavischoolsClient : ISavischoolsClient
@@ -31,6 +32,9 @@ public sealed class SavischoolsClient : ISavischoolsClient
 
     public Task<HttpResponseMessage> PostAsync<T>(string path, T body, CancellationToken ct = default)
         => SendAsync(HttpMethod.Post, path, JsonContent.Create(body), ct);
+
+    public Task<HttpResponseMessage> PutAsync<T>(string path, T body, CancellationToken ct = default)
+        => SendAsync(HttpMethod.Put, path, JsonContent.Create(body), ct);
 
     private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, HttpContent? content, CancellationToken ct)
     {

@@ -65,7 +65,22 @@ public sealed class AuthController : ControllerBase
         return StatusCode((int)resp.StatusCode, body);
     }
 
-    // ── OTP stubs — replace with real email service when ready ───────────────
+    public sealed record GoogleLoginRequest(string IdToken);
+
+    [HttpPost("google")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponse), 200)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest req, CancellationToken ct)
+    {
+        var resp = await _savischools.PostAsync("connect/google", req, ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode) return StatusCode((int)resp.StatusCode, body);
+        var login = JsonSerializer.Deserialize<LoginResponse>(body, _json);
+        return login is null ? StatusCode(500, "Invalid response from Savischools") : Ok(login);
+    }
+
+    // ── OTP — proxied to SavischoolsApi ──────────────────────────────────────
 
     public sealed record SendOtpRequest(string Email);
     public sealed record VerifyOtpRequest(string Email, string Code);
@@ -73,23 +88,22 @@ public sealed class AuthController : ControllerBase
     [HttpPost("send-otp")]
     [AllowAnonymous]
     [ProducesResponseType(200)]
-    public IActionResult SendOtp([FromBody] SendOtpRequest req)
+    [ProducesResponseType(400)]
+    public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest req, CancellationToken ct)
     {
-        // Stub: log and return success. Wire a real SMTP/SendGrid service here later.
-        Console.WriteLine($"[OTP stub] Would send OTP to {req.Email}");
-        return Ok(new { message = "Verification code sent." });
+        var resp = await _savischools.PostAsync("connect/send-otp", req, ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        return StatusCode((int)resp.StatusCode, body);
     }
 
     [HttpPost("verify-otp")]
     [AllowAnonymous]
     [ProducesResponseType(200)]
     [ProducesResponseType(400)]
-    public IActionResult VerifyOtp([FromBody] VerifyOtpRequest req)
+    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest req, CancellationToken ct)
     {
-        // Stub: accept any 6-digit code. Replace with real store/validation later.
-        if (string.IsNullOrEmpty(req.Code) || req.Code.Length != 6 || !req.Code.All(char.IsDigit))
-            return BadRequest(new { error = "Invalid OTP. Please enter the 6-digit code." });
-
-        return Ok(new { verified = true });
+        var resp = await _savischools.PostAsync("connect/verify-otp", req, ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        return StatusCode((int)resp.StatusCode, body);
     }
 }

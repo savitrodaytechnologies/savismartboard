@@ -6,6 +6,7 @@ import { startSessionOfflineFirst } from '@/services/sessionStartService';
 import { db } from '@/db/localDb';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { clearSession, getUser } from '@/pages/LoginPage';
+import ProfileDropdown from '@/components/ProfileDropdown';
 import type { ClassDto, SubjectDto, TopicDto } from '@/types';
 
 // Persist deleted session IDs across navigation (survives remount, cleared on hard refresh)
@@ -242,19 +243,12 @@ export default function TeacherDashboardPage() {
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">Teacher Dashboard</h1>
-                        {user.name && (
-                            <p className="text-sm text-slate-500 mt-0.5">
-                                {user.name} · {user.schoolName}
-                                {user.curriculum && <span className="ml-2 rounded bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-semibold">{user.curriculum}</span>}
-                            </p>
-                        )}
                     </div>
-                    <button
-                        onClick={handleLogout}
-                        className="text-sm text-slate-500 hover:text-slate-800 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-100 transition-colors"
-                    >
-                        Sign out
-                    </button>
+                    <ProfileDropdown
+                        name={user.name ?? 'Teacher'}
+                        schoolName={user.schoolName ?? ''}
+                        onLogout={handleLogout}
+                    />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
