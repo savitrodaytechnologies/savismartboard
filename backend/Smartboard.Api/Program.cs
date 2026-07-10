@@ -32,6 +32,8 @@ builder.Services.Configure<S3Options>(builder.Configuration.GetSection("S3"));
 
 // Infra
 builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+builder.Services.AddSingleton<ISaviLmsConnectionFactory, SaviLmsConnectionFactory>();
+builder.Services.AddSingleton<ISaviKnowledgeBotConnectionFactory, SaviKnowledgeBotConnectionFactory>();
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
     var opts = sp.GetRequiredService<IOptions<S3Options>>().Value;
@@ -42,44 +44,63 @@ builder.Services.AddSingleton<IS3PageArchiveService, S3PageArchiveService>();
 builder.Services.AddHttpContextAccessor();
 
 // Auth — dev: local symmetric key (no Savischools needed); prod: Savischools JWKS authority
+var authBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
+
 if (builder.Environment.IsDevelopment())
 {
     var devKey = new SymmetricSecurityKey(
         Encoding.UTF8.GetBytes(builder.Configuration["DevJwt:Key"]
             ?? throw new InvalidOperationException("DevJwt:Key missing from appsettings.Development.json")));
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
+    authBuilder.AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = devKey,
-                ClockSkew = TimeSpan.FromMinutes(5)
-            };
-        });
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = devKey,
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
+    });
 }
 else
 {
     var jwt = builder.Configuration.GetSection("Savischools:Jwt");
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
+    authBuilder.AddJwtBearer(options =>
+    {
+        options.Authority = jwt["Authority"];
+        options.Audience = jwt["Audience"];
+        options.RequireHttpsMetadata = true;
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            options.Authority = jwt["Authority"];
-            options.Audience = jwt["Audience"];
-            options.RequireHttpsMetadata = true;
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                ClockSkew = TimeSpan.FromMinutes(2)
-            };
-        });
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ClockSkew = TimeSpan.FromMinutes(2)
+        };
+    });
 }
+
+// Add LmsJwt for the SDK
+var lmsKeyString = builder.Configuration["LmsJwt:Key"] ?? "savischools-lms-sdk-secret-key-32-chars!!";
+var lmsKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(lmsKeyString));
+authBuilder.AddJwtBearer("LmsJwt", options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = "SaviLMS",
+        ValidateAudience = true,
+        ValidAudience = "SaviLMS_SDK",
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = lmsKey,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<ITeacherContextAccessor, TeacherContextAccessor>();
 
@@ -95,23 +116,25 @@ builder.Services.AddHttpClient("ai").AddPolicyHandler(HttpPolicies.Retry());
 // HybridAiClient: DeepSeek for text-only, Anthropic (copilot) for vision — routes per call
 builder.Services.AddSingleton<IAiClient, HybridAiClient>();
 
-// Domain services — dev uses SmartboardContextService (real Savischools) but fake KBot mocks
-if (builder.Environment.IsDevelopment())
+// Domain services — dev uses SmartboardContextService (real Savischools). KBot can use mocks or real client.
+builder.Services.AddScoped<ISmartboardContextService, SmartboardContextService>();
+
+bool useKBotMock = builder.Environment.IsDevelopment() && (builder.Configuration.GetValue<bool?>("KBot:UseMock") ?? true);
+if (useKBotMock)
 {
-    builder.Services.AddScoped<ISmartboardContextService, SmartboardContextService>();
     builder.Services.AddScoped<IKBotContentService, DevKBotContentService>();
     builder.Services.AddScoped<IKBotQuestionService, DevKBotQuestionService>();
     builder.Services.AddScoped<IKBotCurriculumService, DevKBotCurriculumService>();
 }
 else
 {
-    builder.Services.AddScoped<ISmartboardContextService, SmartboardContextService>();
     builder.Services.AddScoped<IKBotContentService, KBotContentService>();
     builder.Services.AddScoped<IKBotQuestionService, KBotQuestionService>();
     builder.Services.AddScoped<IKBotCurriculumService, KBotCurriculumService>();
 }
 builder.Services.AddScoped<ISmartboardSessionService, SmartboardSessionService>();
 builder.Services.AddScoped<ISmartboardAiService, SmartboardAiService>();
+builder.Services.AddScoped<ISaviLmsService, SaviLmsService>();
 
 // Repositories
 builder.Services.AddScoped<ISmartboardSessionRepository, SmartboardSessionRepository>();
@@ -122,6 +145,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Savismartboard API", Version = "v1" });
+    // Use full type names (replace '+' for nested types) to avoid schema id collisions
+    c.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace('+', '.'));
     // Adds a Bearer token input box in Swagger UI
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -141,9 +166,10 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// CORS for the React dev server
+// CORS for frontend and external project integrations
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(o => o.AddPolicy("frontend", p => p
-    .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:5173" })
+    .WithOrigins(allowedOrigins)
     .AllowAnyHeader()
     .AllowAnyMethod()));
 

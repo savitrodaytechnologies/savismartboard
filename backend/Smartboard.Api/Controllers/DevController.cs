@@ -39,9 +39,9 @@ public sealed class DevController : ControllerBase
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(LoginResponse), 200)]
+    [ProducesResponseType(typeof(DevLoginResponse), 200)]
     [ProducesResponseType(401)]
-    public IActionResult Login([FromBody] LoginRequest req)
+    public IActionResult Login([FromBody] DevLoginRequest req)
     {
         var user = Array.Find(_users, u =>
             u.SchoolId == req.SchoolId &&
@@ -52,7 +52,7 @@ public sealed class DevController : ControllerBase
             return Unauthorized(new { error = "Invalid school ID, user ID, or password." });
 
         var tokenString = IssueToken(user);
-        return Ok(new LoginResponse(tokenString, 8 * 3600, user.Name, user.SchoolName, user.Curriculum));
+        return Ok(new DevLoginResponse(tokenString, 8 * 3600, user.Name, user.SchoolName, user.Curriculum));
     }
 
     /// <summary>
@@ -133,8 +133,8 @@ public sealed class DevController : ControllerBase
     }
 }
 
-public sealed record LoginRequest(int SchoolId, string UserId, string Password);
-public sealed record LoginResponse(string Token, int ExpiresIn, string Name, string SchoolName, string Curriculum);
+public sealed record DevLoginRequest(int SchoolId, string UserId, string Password);
+public sealed record DevLoginResponse(string Token, int ExpiresIn, string Name, string SchoolName, string Curriculum);
 public sealed record DevTokenResponse(string Token, int ExpiresIn, string Note);
 
 internal sealed record HardcodedUser(int SchoolId, string UserId, string PasswordHash,

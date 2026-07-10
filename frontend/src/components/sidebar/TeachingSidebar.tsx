@@ -96,7 +96,6 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
         })();
     }, [aiQuery?.timestamp]);
 
-    // Debounced search — fires 350 ms after last keystroke
     useEffect(() => {
         if (!searchQuery.trim()) { setSearchResults([]); return; }
         if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -147,6 +146,7 @@ export default function TeachingSidebar({ slug, aiQuery, sessionId }: Props) {
         const [prev, ...rest] = topicHistory;
         setTopicHistory(rest);
         setActiveTopic(prev);
+        setSearching(false);
         setCheckedIds(new Set());
         setCheckedQuestions([]);
     }
