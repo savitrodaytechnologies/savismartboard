@@ -65,22 +65,7 @@ public sealed class AuthController : ControllerBase
         return StatusCode((int)resp.StatusCode, body);
     }
 
-    public sealed record GoogleLoginRequest(string IdToken);
-
-    [HttpPost("google")]
-    [AllowAnonymous]
-    [ProducesResponseType(typeof(LoginResponse), 200)]
-    [ProducesResponseType(401)]
-    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest req, CancellationToken ct)
-    {
-        var resp = await _savischools.PostAsync("connect/google", req, ct);
-        var body = await resp.Content.ReadAsStringAsync(ct);
-        if (!resp.IsSuccessStatusCode) return StatusCode((int)resp.StatusCode, body);
-        var login = JsonSerializer.Deserialize<LoginResponse>(body, _json);
-        return login is null ? StatusCode(500, "Invalid response from Savischools") : Ok(login);
-    }
-
-    // ── OTP — proxied to SavischoolsApi ──────────────────────────────────────
+    // ── OTP Integration with SavischoolsApi ───────────────────────────────
 
     public sealed record SendOtpRequest(string Email);
     public sealed record VerifyOtpRequest(string Email, string Code);

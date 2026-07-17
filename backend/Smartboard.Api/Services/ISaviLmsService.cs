@@ -42,6 +42,32 @@ public interface ISaviLmsService
 
     /// <summary>Authenticates a school using schoolId and apiKey.</summary>
     Task<LmsTokenResponseDto> AuthenticateSchoolAsync(LmsTokenRequestDto request, CancellationToken ct = default);
+
+    /// <summary>Gets the content of skill files from the S3 bucket mapped to the given topic IDs.</summary>
+    Task<string?> GetSkillFilesContentForTopicsAsync(List<int> topicIds);
+
+    /// <summary>Saves a generated lesson plan to the MS SQL database.</summary>
+    Task<long> SaveSmartboardLessonPlanAsync(LmsLessonPlanSaveRequestDto request, CancellationToken ct = default);
+
+    /// <summary>Retrieves lesson plans saved for a specific school.</summary>
+    Task<IReadOnlyList<LmsLessonPlanListItemDto>> GetSmartboardLessonPlansBySchoolAsync(int schoolId, CancellationToken ct = default);
+
+    /// <summary>Retrieves lesson plans with optional filters: schoolId, classId, subjectId. All params are optional — omit any to return broader results.</summary>
+    Task<IReadOnlyList<LmsLessonPlanListItemDto>> GetSmartboardLessonPlansByFilterAsync(
+        int? schoolId,
+        string? classId,
+        string? subjectId,
+        CancellationToken ct = default);
+
+    /// <summary>Saves a generated syllabus plan to the MS SQL database.</summary>
+    Task<long> SaveSyllabusPlanAsync(LmsSyllabusPlanSaveDto request, CancellationToken ct = default);
+
+    /// <summary>Retrieves syllabus plans with optional filters: schoolId, classId, subjectId.</summary>
+    Task<IReadOnlyList<LmsSyllabusPlanListItemDto>> GetSyllabusPlansByFilterAsync(
+        int? schoolId,
+        string? classId,
+        string? subjectId,
+        CancellationToken ct = default);
 }
 
 

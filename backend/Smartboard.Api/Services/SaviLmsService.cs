@@ -7,6 +7,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Amazon;
+using Amazon.S3;
+using Amazon.S3.Model;
+using System.IO;
 
 namespace Smartboard.Api.Services;
 
@@ -167,6 +171,67 @@ public sealed class SaviLmsService : ISaviLmsService
                         Slug                    VARCHAR(255)    NULL,
                         SortOrder               INT             NOT NULL
                     );
+                END");
+
+            // Drop stale LmsSyllabusPlan if it's missing SubjectId column
+            conn.Execute(@"
+                IF OBJECT_ID(N'dbo.LmsSyllabusPlan', N'U') IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.LmsSyllabusPlan') AND name = 'SubjectId')
+                BEGIN
+                    DROP TABLE dbo.LmsSyllabusPlan;
+                END");
+
+            // Create LmsSyllabusPlan Table
+            conn.Execute(@"
+                IF OBJECT_ID(N'dbo.LmsSyllabusPlan', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.LmsSyllabusPlan
+                    (
+                        SyllabusPlanId  BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_LmsSyllabusPlan PRIMARY KEY,
+                        SchoolId        INT NOT NULL,
+                        TeacherId       INT NULL,
+                        BoardId         NVARCHAR(100) NOT NULL,
+                        ClassId         NVARCHAR(100) NOT NULL,
+                        SubjectId       NVARCHAR(100) NOT NULL,
+                        SessionYear     VARCHAR(20) NOT NULL,
+                        BoardName       NVARCHAR(100) NULL,
+                        ClassName       NVARCHAR(100) NULL,
+                        SubjectName     NVARCHAR(100) NULL,
+                        BookName        NVARCHAR(255) NULL,
+                        PlanJson        NVARCHAR(MAX) NOT NULL,
+                        CreatedOn       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                        UpdatedOn       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                    );
+
+                    CREATE UNIQUE NONCLUSTERED INDEX UX_LmsSyllabusPlan_UniquePlan
+                        ON dbo.LmsSyllabusPlan (SchoolId, BoardId, ClassId, SubjectId, SessionYear);
+
+                    CREATE NONCLUSTERED INDEX IX_LmsSyllabusPlan_Filters
+                        ON dbo.LmsSyllabusPlan (SchoolId, ClassId, SubjectId)
+                        INCLUDE (SessionYear, BookName, UpdatedOn);
+                END");
+
+            // Add SchoolName/SchoolAddress/SchoolPhone to LmsSyllabusPlan if missing
+            conn.Execute(@"
+                IF OBJECT_ID(N'dbo.LmsSyllabusPlan', N'U') IS NOT NULL
+                BEGIN
+                    IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.LmsSyllabusPlan') AND name = 'SchoolName')
+                    BEGIN
+                        ALTER TABLE dbo.LmsSyllabusPlan ADD SchoolName NVARCHAR(255) NULL;
+                        ALTER TABLE dbo.LmsSyllabusPlan ADD SchoolAddress NVARCHAR(500) NULL;
+                        ALTER TABLE dbo.LmsSyllabusPlan ADD SchoolPhone NVARCHAR(100) NULL;
+                    END
+                END");
+
+            // Add SchoolName/SchoolAddress/SchoolPhone to LmsLessonPlan if missing
+            conn.Execute(@"
+                IF OBJECT_ID(N'dbo.LmsLessonPlan', N'U') IS NOT NULL
+                BEGIN
+                    IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.LmsLessonPlan') AND name = 'SchoolName')
+                    BEGIN
+                        ALTER TABLE dbo.LmsLessonPlan ADD SchoolName NVARCHAR(255) NULL;
+                        ALTER TABLE dbo.LmsLessonPlan ADD SchoolAddress NVARCHAR(500) NULL;
+                        ALTER TABLE dbo.LmsLessonPlan ADD SchoolPhone NVARCHAR(100) NULL;
+                    END
                 END");
 
             _schemaInitialized = true;
@@ -710,12 +775,14 @@ public sealed class SaviLmsService : ISaviLmsService
 
                 string pName = GetDictValue<string>(userDict, "productname", "productName") ?? "UniversalSDK";
                 string uId = GetDictValue<long>(userDict, "lmsuserid", "lmsUserId").ToString();
+                // Use schoolId from the request (passed by host project via savilmsload.init({ schoolId: '...' }))
+                string schoolIdFromRequest = request.SchoolId?.Trim() ?? string.Empty;
 
                 var lmsKeyString = _config["LmsJwt:Key"] ?? "savischools-lms-sdk-secret-key-32-chars!!";
                 var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(lmsKeyString));
                 var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-                var claims = new[]
+                var claimsList = new List<Claim>
                 {
                     new Claim(JwtRegisteredClaimNames.Sub, uId),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
@@ -723,16 +790,23 @@ public sealed class SaviLmsService : ISaviLmsService
                     new Claim("domainName", reqDomain)
                 };
 
+                // Include school_id in JWT so GetSchoolIdSafe() works server-side during save
+                if (!string.IsNullOrWhiteSpace(schoolIdFromRequest))
+                    claimsList.Add(new Claim("school_id", schoolIdFromRequest));
+
                 var token = new JwtSecurityToken(
                     issuer: "SaviLMS",
                     audience: "SaviLMS_SDK",
-                    claims: claims,
+                    claims: claimsList,
                     expires: DateTime.UtcNow.AddHours(24),
                     signingCredentials: credentials);
 
                 string jwtToken = new JwtSecurityTokenHandler().WriteToken(token);
 
-                return new LmsTokenResponseDto(true, "Authentication successful.", jwtToken, uId, pName, null, null);
+                // Return schoolId in response so frontend SAVI_AUTH.schoolId is set correctly
+                return new LmsTokenResponseDto(true, "Authentication successful.", jwtToken, 
+                    !string.IsNullOrWhiteSpace(schoolIdFromRequest) ? schoolIdFromRequest : uId, 
+                    pName, null, null);
             }
         }
         catch (Exception ex)
@@ -753,6 +827,271 @@ public sealed class SaviLmsService : ISaviLmsService
 
         var groups = await conn.QueryAsync<string>(new CommandDefinition(sql, new { schoolId }, cancellationToken: ct));
         return groups.ToList();
+    }
+
+    public async Task<string?> GetSkillFilesContentForTopicsAsync(List<int> topicIds)
+    {
+        if (topicIds == null || topicIds.Count == 0) return null;
+
+        using var conn = _knowledgeDb.Create();
+
+        // 1. Get distinct skillFileIds for these topicIds from dbo.skillFileTopics
+        var skillFileIds = (await conn.QueryAsync<int>(
+            "SELECT DISTINCT skillFileId FROM dbo.skillFileTopics WHERE topicId IN @topicIds AND delFlg = 0",
+            new { topicIds })).ToList();
+
+        if (skillFileIds.Count == 0) return null;
+
+        // 2. Fetch s3FilePaths from dbo.skillFiles
+        var s3FilePaths = (await conn.QueryAsync<string>(
+            "SELECT s3FilePath FROM dbo.skillFiles WHERE skillFileId IN @skillFileIds AND delFlg = 0 AND s3FilePath IS NOT NULL",
+            new { skillFileIds })).ToList();
+
+        if (s3FilePaths.Count == 0) return null;
+
+        var awsAccessKey = _config["AWS:AccessKeyId"] ?? throw new InvalidOperationException("AWS:AccessKeyId is missing from configuration.");
+        var awsSecretKey = _config["AWS:SecretAccessKey"] ?? throw new InvalidOperationException("AWS:SecretAccessKey is missing from configuration.");
+        var s3Client = new AmazonS3Client(awsAccessKey, awsSecretKey, RegionEndpoint.APSouth1);
+        var sb = new StringBuilder();
+
+        foreach (var s3FilePath in s3FilePaths)
+        {
+            string prefix = "s3://saviknowledgebot-cards-412706838748-ap-south-1-an/";
+            if (!s3FilePath.StartsWith(prefix)) continue;
+
+            string key = s3FilePath.Substring(prefix.Length);
+            try
+            {
+                var getRequest = new GetObjectRequest
+                {
+                    BucketName = "saviknowledgebot-cards-412706838748-ap-south-1-an",
+                    Key = key
+                };
+                using var response = await s3Client.GetObjectAsync(getRequest);
+                using var reader = new StreamReader(response.ResponseStream);
+                string text = await reader.ReadToEndAsync();
+                sb.AppendLine("--- Mapped Syllabus Content ---");
+                sb.AppendLine(text);
+                sb.AppendLine();
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"[Error reading key {key} from S3: {ex.Message}]");
+            }
+        }
+
+        return sb.Length > 0 ? sb.ToString() : null;
+    }
+
+    public async Task<long> SaveSmartboardLessonPlanAsync(LmsLessonPlanSaveRequestDto request, CancellationToken ct = default)
+    {
+        using var conn = _db.Create();
+        string sql = @"
+            IF @LessonPlanId IS NOT NULL AND @LessonPlanId > 0
+            BEGIN
+                UPDATE dbo.LmsLessonPlan
+                SET PlanJson = @PlanJson,
+                    UpdatedOn = SYSUTCDATETIME()
+                WHERE LessonPlanId = @LessonPlanId;
+                SELECT @LessonPlanId;
+            END
+            ELSE
+            BEGIN
+                INSERT INTO dbo.LmsLessonPlan (
+                    SchoolId, TeacherId, ClassId, SubjectId, ChapterId, TopicId,
+                    ClassName, SubjectName, ChapterName, TopicName, PlanJson,
+                    planType, duration, [level], language, learningStyle,
+                    SchoolName, SchoolAddress, SchoolPhone,
+                    CreatedOn, UpdatedOn
+                )
+                VALUES (
+                    @SchoolId, @TeacherId, @ClassId, @SubjectId, @ChapterId, @TopicId,
+                    @ClassName, @SubjectName, @ChapterName, @TopicName, @PlanJson,
+                    @PlanType, @Duration, @Level, @Language, @LearningStyle,
+                    @SchoolName, @SchoolAddress, @SchoolPhone,
+                    SYSUTCDATETIME(), SYSUTCDATETIME()
+                );
+                SELECT CAST(SCOPE_IDENTITY() as BIGINT);
+            END";
+
+        var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(sql, request, cancellationToken: ct));
+        return id;
+    }
+
+    public async Task<IReadOnlyList<LmsLessonPlanListItemDto>> GetSmartboardLessonPlansBySchoolAsync(int schoolId, CancellationToken ct = default)
+    {
+        using var conn = _db.Create();
+        string sql = @"
+            SELECT LessonPlanId, SchoolId, TeacherId, ClassId, SubjectId, ChapterId, TopicId,
+                   ClassName, SubjectName, ChapterName, TopicName, PlanJson, CreatedOn, UpdatedOn,
+                   planType, duration, [level], language, learningStyle,
+                   SchoolName, SchoolAddress, SchoolPhone
+            FROM dbo.LmsLessonPlan
+            WHERE SchoolId = @schoolId
+            ORDER BY CreatedOn DESC";
+
+        var rows = await conn.QueryAsync<LmsLessonPlanListItemDto>(new CommandDefinition(sql, new { schoolId }, cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    public async Task<IReadOnlyList<LmsLessonPlanListItemDto>> GetSmartboardLessonPlansByFilterAsync(
+        int? schoolId,
+        string? classId,
+        string? subjectId,
+        CancellationToken ct = default)
+    {
+        using var conn = _db.Create();
+
+        var conditions = new List<string>();
+        var parameters = new DynamicParameters();
+
+        if (schoolId.HasValue)
+        {
+            conditions.Add("SchoolId = @schoolId");
+            parameters.Add("schoolId", schoolId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(classId))
+        {
+            // ClassId stored as numeric string ("6","7") — exact match first, then ClassName text fallback
+            conditions.Add("(ClassId = @classId OR ClassName LIKE @classIdLike)");
+            parameters.Add("classId", classId.Trim());
+            parameters.Add("classIdLike", $"%{classId.Trim()}%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(subjectId))
+        {
+            // SubjectId stored as numeric string — exact match first, then SubjectName text fallback
+            conditions.Add("(SubjectId = @subjectId OR SubjectName LIKE @subjectIdLike)");
+            parameters.Add("subjectId", subjectId.Trim());
+            parameters.Add("subjectIdLike", $"%{subjectId.Trim()}%");
+        }
+
+        var whereClause = conditions.Count > 0
+            ? "WHERE " + string.Join(" AND ", conditions)
+            : string.Empty;
+
+        string sql = $@"
+            SELECT LessonPlanId, SchoolId, TeacherId, ClassId, SubjectId, ChapterId, TopicId,
+                   ClassName, SubjectName, ChapterName, TopicName, PlanJson, CreatedOn, UpdatedOn,
+                   planType, duration, [level], language, learningStyle,
+                   SchoolName, SchoolAddress, SchoolPhone
+            FROM dbo.LmsLessonPlan
+            {whereClause}
+            ORDER BY CreatedOn DESC";
+
+        var rows = await conn.QueryAsync<LmsLessonPlanListItemDto>(new CommandDefinition(sql, parameters, cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    public async Task<long> SaveSyllabusPlanAsync(LmsSyllabusPlanSaveDto request, CancellationToken ct = default)
+    {
+        using var conn = _db.Create();
+        string sql = @"
+            IF @SyllabusPlanId IS NOT NULL AND @SyllabusPlanId > 0
+            BEGIN
+                UPDATE dbo.LmsSyllabusPlan
+                SET PlanJson = @PlanJson,
+                    BookName = @BookName,
+                    UpdatedOn = SYSUTCDATETIME()
+                WHERE SyllabusPlanId = @SyllabusPlanId;
+                SELECT @SyllabusPlanId;
+            END
+            ELSE
+            BEGIN
+                DECLARE @ExistingId BIGINT = NULL;
+                SELECT TOP 1 @ExistingId = SyllabusPlanId 
+                FROM dbo.LmsSyllabusPlan
+                WHERE SchoolId = @SchoolId 
+                  AND BoardId = @BoardId 
+                  AND ClassId = @ClassId 
+                  AND SubjectId = @SubjectId 
+                  AND SessionYear = @SessionYear;
+
+                IF @ExistingId IS NOT NULL
+                BEGIN
+                    UPDATE dbo.LmsSyllabusPlan
+                    SET PlanJson = @PlanJson,
+                        BookName = @BookName,
+                        UpdatedOn = SYSUTCDATETIME()
+                    WHERE SyllabusPlanId = @ExistingId;
+                    SELECT @ExistingId;
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO dbo.LmsSyllabusPlan (
+                        SchoolId, TeacherId, BoardId, ClassId, SubjectId, SessionYear,
+                        BoardName, ClassName, SubjectName, BookName, PlanJson,
+                        SchoolName, SchoolAddress, SchoolPhone,
+                        CreatedOn, UpdatedOn
+                    )
+                    VALUES (
+                        @SchoolId, @TeacherId, @BoardId, @ClassId, @SubjectId, @SessionYear,
+                        @BoardName, @ClassName, @SubjectName, @BookName, @PlanJson,
+                        @SchoolName, @SchoolAddress, @SchoolPhone,
+                        SYSUTCDATETIME(), SYSUTCDATETIME()
+                    );
+                    SELECT CAST(SCOPE_IDENTITY() as BIGINT);
+                END
+            END";
+
+        try
+        {
+            var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(sql, request, cancellationToken: ct));
+            return id;
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+      
+    }
+
+    public async Task<IReadOnlyList<LmsSyllabusPlanListItemDto>> GetSyllabusPlansByFilterAsync(
+        int? schoolId,
+        string? classId,
+        string? subjectId,
+        CancellationToken ct = default)
+    {
+        using var conn = _db.Create();
+        var conditions = new List<string>();
+        var parameters = new Dapper.DynamicParameters();
+
+        if (schoolId.HasValue)
+        {
+            conditions.Add("SchoolId = @schoolId");
+            parameters.Add("schoolId", schoolId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(classId))
+        {
+            conditions.Add("(ClassId = @classId OR ClassName LIKE @classIdLike)");
+            parameters.Add("classId", classId.Trim());
+            parameters.Add("classIdLike", $"%{classId.Trim()}%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(subjectId))
+        {
+            conditions.Add("(SubjectId = @subjectId OR SubjectName LIKE @subjectIdLike)");
+            parameters.Add("subjectId", subjectId.Trim());
+            parameters.Add("subjectIdLike", $"%{subjectId.Trim()}%");
+        }
+
+        var whereClause = conditions.Count > 0
+            ? "WHERE " + string.Join(" AND ", conditions)
+            : string.Empty;
+
+        string sql = $@"
+            SELECT SyllabusPlanId, SchoolId, TeacherId, BoardId, ClassId, SubjectId, SessionYear,
+                   BoardName, ClassName, SubjectName, BookName, PlanJson, CreatedOn, UpdatedOn,
+                   SchoolName, SchoolAddress, SchoolPhone
+            FROM dbo.LmsSyllabusPlan
+            {whereClause}
+            ORDER BY UpdatedOn DESC";
+
+        var rows = await conn.QueryAsync<LmsSyllabusPlanListItemDto>(new CommandDefinition(sql, parameters, cancellationToken: ct));
+        return rows.ToList();
     }
 
     private static string Truncate(string s, int maxLen) =>

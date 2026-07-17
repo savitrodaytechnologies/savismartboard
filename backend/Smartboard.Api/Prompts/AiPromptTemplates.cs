@@ -13,6 +13,9 @@ public static class AiPromptTemplates
     /// <summary>Global system prompt injected into every AI call.</summary>
     public static readonly string AiPromptGlobal = Load("AiPromptGlobal.txt");
 
+    /// <summary>System prompt template for generating a lesson plan.</summary>
+    public static readonly string LessonPlanPrompt = Load("LessonPlanPrompt.txt");
+
     private static readonly IReadOnlyDictionary<string, string> _selectionTabPrompts =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {

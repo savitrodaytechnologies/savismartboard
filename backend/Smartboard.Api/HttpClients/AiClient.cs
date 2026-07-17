@@ -62,7 +62,7 @@ public sealed class OpenAiCompatibleAiClient : IAiClient
                 new { role = "system", content = systemPrompt },
                 new { role = "user",   content = userContent  },
             },
-            max_tokens = 1024,
+            max_tokens = 8192,
         }, JsonOpts);
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
@@ -126,7 +126,7 @@ public sealed class AnthropicAiClient : IAiClient
         var payload = JsonSerializer.Serialize(new
         {
             model      = _cfg.Model,
-            max_tokens = 1024,
+            max_tokens = 4096,
             system     = systemPrompt,
             messages   = new[] { new { role = "user", content = (object)contentItems } },
         }, JsonOpts);

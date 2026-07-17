@@ -44,6 +44,59 @@ export default function TeacherDashboardPage() {
     const [renameTarget, setRenameTarget] = useState<number | null>(null);
     const [renameValue, setRenameValue] = useState('');
     const [renaming, setRenaming] = useState(false);
+
+    const [activeTab, setActiveTab] = useState<'existing' | 'lms'>('existing');
+
+    useEffect(() => {
+        if (activeTab === 'lms') {
+            const scriptId = 'savilms-sdk-script';
+            let script = document.getElementById(scriptId) as HTMLScriptElement;
+
+            const initLms = async () => {
+                const container = document.getElementById('question-paper-sdk');
+                if (!container) {
+                    setTimeout(initLms, 50);
+                    return;
+                }
+                if ((window as any).savilmsload) {
+                    try {
+                        await (window as any).savilmsload.init({
+                            secretKey: 'sdk_a8F9K2LmP7QxR5Vn9Tz4',
+                            domainName: window.location.origin,
+                            containerId: 'question-paper-sdk',
+                            clientSchool: {
+                                id: '1203',
+                                name: 'Savi Smartboard',
+                                phone: null,
+                                address: null
+                            }
+                        });
+                    } catch (err) {
+                        console.error('Failed to init SaviLms SDK:', err);
+                    }
+                } else {
+                    console.error('savilmsload is not defined on window');
+                }
+            };
+
+            if (!script) {
+                script = document.createElement('script');
+                script.id = scriptId;
+                script.src = 'http://localhost:3000/SaviLms.js';
+                script.async = true;
+                script.onload = () => {
+                    setTimeout(initLms, 100);
+                };
+                script.onerror = () => {
+                    console.error('Failed to load SaviLms SDK script');
+                };
+                document.body.appendChild(script);
+            } else {
+                initLms();
+            }
+        }
+    }, [activeTab]);
+
     async function loadLocalSessions() {
         const locals = await db.sessions.orderBy('updatedAt').reverse().limit(10).toArray();
         setRecentSessions(filterDeleted(locals.map(s => ({
@@ -238,9 +291,9 @@ export default function TeacherDashboardPage() {
 
     return (
         <>
-            <div className="min-h-screen bg-slate-50 p-6">
+            <div className={`min-h-screen bg-slate-50 ${activeTab === 'lms' ? 'px-6 py-3' : 'p-6'}`}>
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
+                <div className={`flex items-center justify-between ${activeTab === 'lms' ? 'mb-3' : 'mb-6'}`}>
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">Teacher Dashboard</h1>
                     </div>
@@ -251,169 +304,199 @@ export default function TeacherDashboardPage() {
                     />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                    {/* ── Picker card ─────────────────────────────────────────────────── */}
-                    <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
-                        <h2 className="font-semibold text-slate-700 text-sm uppercase tracking-wide">Start a Session</h2>
-
-                        {/* Class */}
-                        <div>
-                            <label className="block text-xs text-slate-500 mb-1">Class</label>
-                            <select
-                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                value={selectedClass?.classId ?? ''}
-                                onChange={e => setSelectedClass(classes.find(c => c.classId === e.target.value) ?? null)}
-                            >
-                                <option value="">Select class…</option>
-                                {classes.map(c => <option key={c.classId} value={c.classId}>{c.name}</option>)}
-                            </select>
-                        </div>
-
-                        {/* Subject */}
-                        <div>
-                            <label className="block text-xs text-slate-500 mb-1">Subject</label>
-                            <select
-                                disabled={!selectedClass}
-                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                                value={selectedSubject?.subjectId ?? ''}
-                                onChange={e => setSelectedSubject(subjects.find(s => s.subjectId === e.target.value) ?? null)}
-                            >
-                                <option value="">Select subject…</option>
-                                {subjects.map(s => <option key={s.subjectId} value={s.subjectId}>{s.name}</option>)}
-                            </select>
-                        </div>
-
-                        {/* Topic (optional) */}
-                        <div>
-                            <label className="block text-xs text-slate-500 mb-1">Topic <span className="text-slate-400">(optional)</span></label>
-                            <select
-                                disabled={!selectedSubject}
-                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                                value={selectedTopic?.topicId ?? ''}
-                                onChange={e => setSelectedTopic(topics.find(t => t.topicId === Number(e.target.value)) ?? null)}
-                            >
-                                <option value="">No specific topic</option>
-                                {topics.map(t => <option key={t.topicId} value={t.topicId}>{t.name}</option>)}
-                            </select>
-                        </div>
-
-                        <div className="flex gap-2 pt-1">
-                            <button
-                                onClick={handleStartSession}
-                                disabled={!canStart || starting}
-                                className="flex-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white py-2 text-sm font-semibold disabled:opacity-40 transition-colors"
-                            >
-                                {starting ? 'Starting…' : '⬜ Blank Board'}
-                            </button>
-                            <button
-                                onClick={handleBrowseTopic}
-                                disabled={!canBrowse}
-                                title="Browse content cards & questions for this topic"
-                                className="flex-1 rounded-lg bg-green-600 hover:bg-green-700 text-white py-2 text-sm font-semibold disabled:opacity-40 transition-colors"
-                            >
-                                📄 Browse Content
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* ── Recent sessions ─────────────────────────────────────────────── */}
-                    <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
-                        <h2 className="font-semibold text-slate-700 text-sm uppercase tracking-wide mb-4">Recent Sessions</h2>
-
-                        {sessionsLoading && <p className="text-sm text-slate-400">Loading…</p>}
-
-                        {!sessionsLoading && recentSessions.length === 0 && (
-                            <p className="text-sm text-slate-400">No sessions yet. Start your first one using the picker →</p>
-                        )}
-
-                        {!sessionsLoading && recentSessions.length > 0 && (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="text-xs text-slate-500 border-b border-slate-100">
-                                            <th className="pb-2 text-left font-medium">Title</th>
-                                            <th className="pb-2 text-left font-medium">Date</th>
-                                            <th className="pb-2 text-left font-medium">Status</th>
-                                            <th className="pb-2" />
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {recentSessions.map(s => (
-                                            <tr key={s.sessionId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                <td className="py-2 pr-3 text-slate-800 font-medium max-w-52">
-                                                    {renameTarget === s.sessionId ? (
-                                                        <div className="flex items-center gap-1">
-                                                            <input
-                                                                autoFocus
-                                                                className="flex-1 min-w-0 border border-blue-400 rounded px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                                                                value={renameValue}
-                                                                disabled={renaming}
-                                                                onChange={e => setRenameValue(e.target.value)}
-                                                                onKeyDown={e => {
-                                                                    if (e.key === 'Enter') commitRename(s.sessionId);
-                                                                    if (e.key === 'Escape') cancelRename();
-                                                                }}
-                                                            />
-                                                            <button
-                                                                onClick={() => commitRename(s.sessionId)}
-                                                                disabled={renaming}
-                                                                className="shrink-0 text-green-600 hover:text-green-700 disabled:opacity-40 text-base leading-none"
-                                                                title="Save"
-                                                            >✓</button>
-                                                            <button
-                                                                onClick={cancelRename}
-                                                                disabled={renaming}
-                                                                className="shrink-0 text-slate-400 hover:text-slate-600 disabled:opacity-40 text-base leading-none"
-                                                                title="Cancel"
-                                                            >✕</button>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="truncate block">{s.sessionTitle ?? `Session #${s.sessionId}`}</span>
-                                                    )}
-                                                </td>
-                                                <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">
-                                                    {new Date(s.startedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                </td>
-                                                <td className="py-2 pr-3">
-                                                    <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.status === 'InProgress'
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-slate-100 text-slate-500'
-                                                        }`}>
-                                                        {s.status === 'InProgress' ? 'In Progress' : 'Ended'}
-                                                    </span>
-                                                </td>
-                                                <td className="py-2 text-right">
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <button
-                                                            onClick={() => navigate(`/session/${s.sessionId}`)}
-                                                            className={`rounded px-3 py-1 text-xs font-semibold transition-colors ${s.status === 'InProgress'
-                                                                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                                                                }`}
-                                                        >
-                                                            {s.status === 'InProgress' ? 'Continue' : 'View'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => startRename(s)}
-                                                            className="rounded px-2 py-1 text-xs font-semibold text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                                            title="Rename session"
-                                                        >✏️</button>
-                                                        <button
-                                                            onClick={() => setDeleteTarget({ sessionId: s.sessionId, title: s.sessionTitle ?? `Session #${s.sessionId}` })}
-                                                            className="rounded px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-50 transition-colors"
-                                                            title="Delete session"
-                                                        >🗑</button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
+                {/* Tab Switcher */}
+                <div className={`inline-flex p-1 bg-slate-200/50 rounded-xl border border-slate-200/60 shadow-sm ${activeTab === 'lms' ? 'mb-2' : 'mb-6'}`}>
+                    <button
+                        onClick={() => setActiveTab('existing')}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${activeTab === 'existing'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                    >
+                        📊 Dashboard
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('lms')}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${activeTab === 'lms'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                    >
+                        📝 LMS SDK
+                    </button>
                 </div>
+
+                {activeTab === 'existing' ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                        {/* ── Picker card ─────────────────────────────────────────────────── */}
+                        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+                            <h2 className="font-semibold text-slate-700 text-sm uppercase tracking-wide">Start a Session</h2>
+
+                            {/* Class */}
+                            <div>
+                                <label className="block text-xs text-slate-500 mb-1">Class</label>
+                                <select
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={selectedClass?.classId ?? ''}
+                                    onChange={e => setSelectedClass(classes.find(c => c.classId === e.target.value) ?? null)}
+                                >
+                                    <option value="">Select class…</option>
+                                    {classes.map(c => <option key={c.classId} value={c.classId}>{c.name}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Subject */}
+                            <div>
+                                <label className="block text-xs text-slate-500 mb-1">Subject</label>
+                                <select
+                                    disabled={!selectedClass}
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                    value={selectedSubject?.subjectId ?? ''}
+                                    onChange={e => setSelectedSubject(subjects.find(s => s.subjectId === e.target.value) ?? null)}
+                                >
+                                    <option value="">Select subject…</option>
+                                    {subjects.map(s => <option key={s.subjectId} value={s.subjectId}>{s.name}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Topic (optional) */}
+                            <div>
+                                <label className="block text-xs text-slate-500 mb-1">Topic <span className="text-slate-400">(optional)</span></label>
+                                <select
+                                    disabled={!selectedSubject}
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                    value={selectedTopic?.topicId ?? ''}
+                                    onChange={e => setSelectedTopic(topics.find(t => t.topicId === Number(e.target.value)) ?? null)}
+                                >
+                                    <option value="">No specific topic</option>
+                                    {topics.map(t => <option key={t.topicId} value={t.topicId}>{t.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="flex gap-2 pt-1">
+                                <button
+                                    onClick={handleStartSession}
+                                    disabled={!canStart || starting}
+                                    className="flex-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white py-2 text-sm font-semibold disabled:opacity-40 transition-colors"
+                                >
+                                    {starting ? 'Starting…' : '⬜ Blank Board'}
+                                </button>
+                                <button
+                                    onClick={handleBrowseTopic}
+                                    disabled={!canBrowse}
+                                    title="Browse content cards & questions for this topic"
+                                    className="flex-1 rounded-lg bg-green-600 hover:bg-green-700 text-white py-2 text-sm font-semibold disabled:opacity-40 transition-colors"
+                                >
+                                    📄 Browse Content
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ── Recent sessions ─────────────────────────────────────────────── */}
+                        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+                            <h2 className="font-semibold text-slate-700 text-sm uppercase tracking-wide mb-4">Recent Sessions</h2>
+
+                            {sessionsLoading && <p className="text-sm text-slate-400">Loading…</p>}
+
+                            {!sessionsLoading && recentSessions.length === 0 && (
+                                <p className="text-sm text-slate-400">No sessions yet. Start your first one using the picker →</p>
+                            )}
+
+                            {!sessionsLoading && recentSessions.length > 0 && (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-xs text-slate-500 border-b border-slate-100">
+                                                <th className="pb-2 text-left font-medium">Title</th>
+                                                <th className="pb-2 text-left font-medium">Date</th>
+                                                <th className="pb-2 text-left font-medium">Status</th>
+                                                <th className="pb-2" />
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {recentSessions.map(s => (
+                                                <tr key={s.sessionId} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                    <td className="py-2 pr-3 text-slate-800 font-medium max-w-52">
+                                                        {renameTarget === s.sessionId ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <input
+                                                                    autoFocus
+                                                                    className="flex-1 min-w-0 border border-blue-400 rounded px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                                                                    value={renameValue}
+                                                                    disabled={renaming}
+                                                                    onChange={e => setRenameValue(e.target.value)}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') commitRename(s.sessionId);
+                                                                        if (e.key === 'Escape') cancelRename();
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={() => commitRename(s.sessionId)}
+                                                                    disabled={renaming}
+                                                                    className="shrink-0 text-green-600 hover:text-green-700 disabled:opacity-40 text-base leading-none"
+                                                                    title="Save"
+                                                                >✓</button>
+                                                                <button
+                                                                    onClick={cancelRename}
+                                                                    disabled={renaming}
+                                                                    className="shrink-0 text-slate-400 hover:text-slate-600 disabled:opacity-40 text-base leading-none"
+                                                                    title="Cancel"
+                                                                >✕</button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="truncate block">{s.sessionTitle ?? `Session #${s.sessionId}`}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">
+                                                        {new Date(s.startedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </td>
+                                                    <td className="py-2 pr-3">
+                                                        <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.status === 'InProgress'
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : 'bg-slate-100 text-slate-500'
+                                                            }`}>
+                                                            {s.status === 'InProgress' ? 'In Progress' : 'Ended'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2 text-right">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <button
+                                                                onClick={() => navigate(`/session/${s.sessionId}`)}
+                                                                className={`rounded px-3 py-1 text-xs font-semibold transition-colors ${s.status === 'InProgress'
+                                                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                                                                    }`}
+                                                            >
+                                                                {s.status === 'InProgress' ? 'Continue' : 'View'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => startRename(s)}
+                                                                className="rounded px-2 py-1 text-xs font-semibold text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                                title="Rename session"
+                                                            >✏️</button>
+                                                            <button
+                                                                onClick={() => setDeleteTarget({ sessionId: s.sessionId, title: s.sessionTitle ?? `Session #${s.sessionId}` })}
+                                                                className="rounded px-2 py-1 text-xs font-semibold text-rose-500 hover:bg-rose-50 transition-colors"
+                                                                title="Delete session"
+                                                            >🗑</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="page animsition exam-builder-wrapper">
+                        <div className="page-content !p-0">
+                            <div id="question-paper-sdk" style={{ position: 'relative', top: '0px' }}></div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ── Delete confirmation modal ─────────────────────────────────── */}

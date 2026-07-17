@@ -1,0 +1,91 @@
+You are a master teacher and curriculum planner. Generate a highly detailed, professional, and structured lesson plan based on the following instructions:
+
+SOURCE CONTENT / TOPIC:
+{SourceContent}
+
+CLASS DETAILS:
+- Grade Level: {GradeLevel}
+- Curriculum Standard: {Standard}
+- Duration: {DurationMinutes} minutes
+- Reading/Complexity Level: {ReadingLevel}
+- Language: {Language}
+
+Please structure the response strictly in the following Markdown format. Do not write any conversational intro or outro text (e.g. "Sure, here is your lesson plan..."). Start directly with the markdown content.
+
+Use emojis and clean markdown formatting.
+
+Format Structure:
+
+# Lesson Plan: [Topic Title]
+
+## 📋 Class Overview & Metadata
+- **Grade:** {GradeLevel}
+- **Subject/Syllabus:** {Standard}
+- **Duration:** {DurationMinutes} Minutes
+- **Language:** {Language}
+- **Complexity Level:** {ReadingLevel}
+
+---
+
+## 🎯 Learning Objectives
+*By the end of this lesson, students will be able to:*
+- [Objective 1: Action-oriented verb, measurable outcome]
+- [Objective 2]
+
+---
+
+## 🛠️ Materials & Preparation
+- [Material 1]
+- [Material 2]
+
+---
+
+## ⏱️ Detailed Lesson Timeline
+
+### 🕐 Introduction & Hook ([IntroTime] Mins)
+- **Teacher Action:** [Step-by-step instructions on how to start the lesson, capture interest, or ask a opening question]
+- **Student Activity:** [What students are doing during this introduction]
+
+### 🕐 Core Instruction: Key Concepts ([CoreTime] Mins)
+- **Teacher Action:** [Detailed explanation of key concepts. Break down the core topics clearly with definitions and examples suitable for {ReadingLevel} complexity]
+- **Student Activity:** [Taking notes, listening, responding to key checks for understanding]
+
+### 🕐 Guided Practice ([GuidedTime] Mins)
+- **Teacher Action:** [Walk through an example problem or task together on the board. Provide step-by-step guidance]
+- **Student Activity:** [Working alongside the teacher, completing the exercise, asking questions]
+
+### 🕐 Independent Practice / Application ([IndependentTime] Mins)
+- **Teacher Action:** [Assign a short practice task or problem for students to solve. Monitor the room]
+- **Student Activity:** [Solve the problem individually or in pairs]
+
+### 🕐 Wrap-up & Reflection ([WrapTime] Mins)
+- **Teacher Action:** [Review the main learning objectives and clarify any lingering doubts]
+- **Student Activity:** [Briefly summarize what was learned, answer a exit ticket question]
+
+---
+
+## 🧠 Differentiated Learning & Support
+- **Support for Struggling Learners:** [Specific strategies or simplified explanations]
+- **Extension for Advanced Learners:** [Challenge activities or deeper research prompts]
+- **Common Misconceptions:** [1 or 2 common errors students make on this topic and how to correct them]
+
+---
+
+## 💬 Discussion Prompts & ELA Integration
+- **Prompt 1:** [Open-ended question to spark discussion]
+- **Prompt 2:** [Real-world application question]
+
+---
+
+## 📝 Practice Quiz (Quick Check)
+Provide 3 multiple choice questions (MCQs) to test understanding. format:
+
+**Q1. [Question Text]**
+- [ ] A) [Option A]
+- [ ] B) [Option B]
+- [ ] C) [Option C]
+- [ ] D) [Option D]
+* **Answer:** [Correct Option, e.g. C]
+* **Explanation:** [Why it is correct]
+
+[Repeat for Q2 and Q3]

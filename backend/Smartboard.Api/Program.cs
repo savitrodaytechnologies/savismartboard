@@ -105,7 +105,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<ITeacherContextAccessor, TeacherContextAccessor>();
 
 // HTTP clients with Polly retry
-// Savischools: 30s timeout (AWS SES email sending can take up to ~10s)
+// Savischools: 30s timeout to allow local cold starts and SMTP operations
 builder.Services.AddHttpClient<ISavischoolsClient, SavischoolsClient>(c => c.Timeout = TimeSpan.FromSeconds(30))
     .AddPolicyHandler(HttpPolicies.Retry());
 builder.Services.AddHttpClient<IKBotClient, KBotClient>()

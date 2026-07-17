@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AiGurukul Smartboard - Interactive Lesson Planner Demo</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --sidebar-bg: #1e293b;
+            --canvas-bg: #0b0f19;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-primary: #6366f1; /* Indigo */
+            --accent-secondary: #06b6d4; /* Cyan */
+            --accent-gradient: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            line-height: 1.5;
+        }
+
+        /* --- TOP HEADER --- */
+        .app-header {
+            background: #111827;
+            border-bottom: 1px solid var(--card-border);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 60px;
+            flex-shrink: 0;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            background: var(--accent-gradient);
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: white;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .logo-text {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1.2rem;
+            letter-spacing: -0.01em;
+            background: linear-gradient(to right, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-tagline {
+            font-size: 0.75rem;
+            color: var(--accent-secondary);
+            font-weight: 600;
+            background: rgba(6, 182, 212, 0.1);
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            margin-left: 0.5rem;
+        }
+
+        .session-info {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* --- SPLIT CONTAINER --- */
+        .app-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- LEFT SIDE: CANVAS (70%) --- */
+        .canvas-area {
+            flex: 1;
+            background-color: var(--canvas-bg);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        /* Toolbar */
+        .canvas-toolbar {
+            position: absolute;
+            left: 1.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 1rem;
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+            z-index: 10;
+        }
+
+        .tool-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 0.75rem;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 1.1rem;
+        }
+
+        .tool-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .tool-btn.active {
+            background: var(--accent-gradient);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+        }
+
+        /* Slide Viewer Container */
+        .slide-workspace {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            overflow: auto;
+        }
+
+        .board-slide {
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16/9;
+            background: #1e293b;
+            border-radius: 1rem;
+            box-shadow: 0 25px 60px -20px rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            animation: fadeIn 0.4s ease;
+        }
+
+        /* Slide Content Mockups */
+        .slide-title-layout {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .slide-title-layout h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        .slide-title-layout p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+        }
+
+        .slide-content-layout {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .slide-content-layout h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.5rem;
+        }
+        .slide-content-layout ul {
+            margin-left: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            font-size: 1.05rem;
+            color: #cbd5e1;
+        }
+
+        /* Empty Canvas State */
+        .empty-canvas {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        .empty-canvas svg {
+            color: var(--card-border);
+            margin-bottom: 1rem;
+        }
+
+        /* Bottom Slide Strip */
+        .bottom-page-strip {
+            height: 70px;
+            background: #111827;
+            border-top: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 1.5rem;
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+        .page-thumb {
+            width: 80px;
+            height: 45px;
+            background: #1e293b;
+            border-radius: 4px;
+            border: 2px solid var(--card-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        .page-thumb:hover {
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+        .page-thumb.active {
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+        }
+
+        /* --- RIGHT SIDE: SIDEBAR (30%) --- */
+        .sidebar {
+            width: 400px;
+            background-color: var(--sidebar-bg);
+            border-left: 1px solid var(--card-border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        /* Sidebar Tabs */
+        .sidebar-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--card-border);
+            background: #111827;
+            flex-shrink: 0;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 0.85rem 0.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .tab-btn.active {
+            color: var(--accent-secondary);
+            border-bottom-color: var(--accent-secondary);
+            background: rgba(30, 41, 59, 0.4);
+        }
+
+        .tab-btn-icon {
+            font-size: 1.2rem;
+        }
+
+        /* Tab Panels */
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-panel {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .tab-panel.active {
+            display: flex;
+        }
+
+        .placeholder-panel {
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* --- LESSON PLANNER UI --- */
+        .planner-container {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .planner-title-row {
+            margin-bottom: 0.5rem;
+        }
+        .planner-title-row h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .planner-title-row p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Form Controls */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .form-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Source Type Radio Group */
+        .source-type-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            background: rgba(15, 23, 42, 0.4);
+            padding: 0.25rem;
+            border-radius: 0.75rem;
+            border: 1px solid var(--card-border);
+        }
+
+        .source-type-option {
+            position: relative;
+        }
+
+        .source-type-option input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .source-type-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            padding: 0.6rem 0.25rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.25s ease;
+            text-align: center;
+        }
+
+        .source-type-option input:checked + .source-type-label {
+            background: var(--card-bg);
+            color: var(--accent-secondary);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+        }
+
+        .form-input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: white;
+            font-size: 0.85rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-primary);
+        }
+
+        textarea.form-input {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        /* Settings Grid */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-select {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+            color: white;
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+        }
+
+        .form-select:focus {
+            border-color: var(--accent-primary);
+        }
+
+        /* --- BUTTONS --- */
+        .btn-full {
+            width: 100%;
+            padding: 0.85rem;
+            border-radius: 0.75rem;
+            border: none;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-gradient {
+            background: var(--accent-gradient);
+            color: white;
+            box-shadow: 0 8px 20px -6px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-gradient:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px -6px rgba(99, 102, 241, 0.6);
+        }
+
+        .btn-transparent {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+        }
+
+        .btn-transparent:hover {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+        }
+
+        /* --- SKELETON / LOADING LOADER --- */
+        .loading-container {
+            display: none;
+            padding: 2rem;
+            flex-direction: column;
+            gap: 1.5rem;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .skeleton-block {
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.05) 75%);
+            background-size: 200% 100%;
+            animation: loading-shimmer 1.5s infinite;
+            border-radius: 0.5rem;
+        }
+
+        @keyframes loading-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent-gradient);
+            transition: width 0.1s linear;
+        }
+
+        /* --- OUTPUT PANEL --- */
+        .output-container {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .output-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .output-back-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .output-back-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .output-body {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .output-meta-card {
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px solid var(--card-border);
+            border-radius: 1rem;
+            padding: 1rem 1.25rem;
+        }
+        .output-meta-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: white;
+        }
+        .output-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        .output-meta-grid span strong {
+            color: var(--text-primary);
+        }
+
+        /* Section structure in Output */
+        .out-section {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 1.25rem;
+        }
+        .out-section:last-child {
+            border: 0;
+            padding-bottom: 0;
+        }
+        .out-section h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent-secondary);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .objectives-list {
+            margin-left: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #cbd5e1;
+        }
+
+        /* Flow list */
+        .flow-step-item {
+            border-left: 2px solid rgba(99, 102, 241, 0.3);
+            padding-left: 1rem;
+            margin-bottom: 1.25rem;
+            position: relative;
+        }
+        .flow-step-item::before {
+            content: '';
+            position: absolute;
+            left: -5px;
+            top: 2px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+        }
+        .flow-step-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+        }
+        .flow-step-time {
+            color: var(--accent-secondary);
+            font-size: 0.75rem;
+        }
+        .flow-step-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* Accordion for teacher guides */
+        .out-accordion {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--card-border);
+            border-radius: 0.75rem;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+        }
+        .out-accordion-header {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+        .out-accordion-content {
+            padding: 0 1rem 0.75rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: none;
+            border-top: 1px solid var(--card-border);
+            padding-top: 0.75rem;
+        }
+
+        /* Output Actions */
+        .output-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        /* --- DYNAMIC TRANSITIONS --- */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- --- APP HEADER --- -->
+    <div class="app-header">
+        <div class="logo-section">
+            <div class="logo-icon">✨</div>
+            <div class="logo-text">AiGurukul</div>
+            <span class="logo-tagline">Smartboard v1.8</span>
+        </div>
+        <div class="session-info">
+            <span>Class: <strong>Grade 7 (Sec A)</strong></span>
+            <span>Subject: <strong>Science</strong></span>
+        </div>
+    </div>
+
+    <!-- --- APP BODY (SPLIT WORKSPACE) --- -->
+    <div class="app-body">
+        
+        <!-- === LEFT SIDE: WHITEBOARD CANVAS === -->
+        <div class="canvas-area">
+            <!-- Toolbar -->
+            <div class="canvas-toolbar">
+                <button class="tool-btn active" title="Select Pointer">🖱️</button>
+                <button class="tool-btn" title="Pen/Draw">✏️</button>
+                <button class="tool-btn" title="Shapes">⬜</button>
+                <button class="tool-btn" title="Eraser">🧹</button>
+                <button class="tool-btn" title="Lasso Ask AI">✨</button>
+            </div>
+
+            <!-- Slide Workspace -->
+            <div class="slide-workspace" id="canvas-workspace">
+                <div class="empty-canvas" id="canvas-empty">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                    </svg>
+                    <h4>Whiteboard Canvas</h4>
+                    <p style="font-size: 0.8rem; max-width: 300px; margin-top: 0.25rem;">Generate a lesson plan in the sidebar and click <strong>"Add to Board"</strong> to populate slides here.</p>
+                </div>
+
+                <!-- Generated Slide View (Will show dynamically) -->
+                <div class="board-slide" id="canvas-slide" style="display: none;">
+                    <div id="slide-inner">
+                        <!-- Slide Content Dynamically Injected -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page Thumbnail Strip -->
+            <div class="bottom-page-strip" id="slide-strip" style="display: none;">
+                <!-- Page thumbnails populated here -->
+            </div>
+        </div>
+
+        <!-- === RIGHT SIDE: TEACHING SIDEBAR === -->
+        <div class="sidebar">
+            <!-- Tabs -->
+            <div class="sidebar-tabs">
+                <button class="tab-btn" onclick="switchTab('content', this)">
+                    <span class="tab-btn-icon">📚</span>
+                    <span>Content</span>
+                </button>
+                <button class="tab-btn" onclick="switchTab('questions', this)">
+                    <span class="tab-btn-icon">❓</span>
+                    <span>Questions</span>
+                </button>
+                <button class="tab-btn" onclick="switchTab('quiz', this)">
+                    <span class="tab-btn-icon">📝</span>
+                    <span>Quiz</span>
+                </button>
+                <button class="tab-btn" onclick="switchTab('ai', this)">
+                    <span class="tab-btn-icon">🧠</span>
+                    <span>AI Assist</span>
+                </button>
+                <button class="tab-btn active" id="planner-tab-header" onclick="switchTab('planner', this)">
+                    <span class="tab-btn-icon">✨</span>
+                    <span>Planner</span>
+                </button>
+            </div>
+
+            <!-- Tab Content Panel -->
+            <div class="tab-content">
+                <!-- Panel 1 - Content -->
+                <div class="tab-panel" id="panel-content">
+                    <div class="placeholder-panel">📚 Content Cards Tab Content</div>
+                </div>
+
+                <!-- Panel 2 - Questions -->
+                <div class="tab-panel" id="panel-questions">
+                    <div class="placeholder-panel">❓ Questions List Content</div>
+                </div>
+
+                <!-- Panel 3 - Quiz -->
+                <div class="tab-panel" id="panel-quiz">
+                    <div class="placeholder-panel">📝 Student Quiz Management Panel</div>
+                </div>
+
+                <!-- Panel 4 - AI Assist -->
+                <div class="tab-panel" id="panel-ai">
+                    <div class="placeholder-panel">🧠 Image Lasso AI Analysis</div>
+                </div>
+
+                <!-- Panel 5 - LESSON PLANNER (ACTIVE) -->
+                <div class="tab-panel active" id="panel-planner">
+                    
+                    <!-- INPUT FORM STAGE -->
+                    <div class="planner-container" id="planner-input-stage">
+                        <div class="planner-title-row">
+                            <h2>AI Lesson Planner</h2>
+                            <p>Generate optimized lesson plans and whiteboard slides instantly.</p>
+                        </div>
+
+                        <!-- Source Type Selection -->
+                        <div class="form-group">
+                            <span class="form-label">Select Source Type</span>
+                            <div class="source-type-group">
+                                <label class="source-type-option">
+                                    <input type="radio" name="srcType" value="topic" checked onchange="toggleSourceInput()">
+                                    <span class="source-type-label">✍️ Topic Text</span>
+                                </label>
+                                <label class="source-type-option">
+                                    <input type="radio" name="srcType" value="youtube" onchange="toggleSourceInput()">
+                                    <span class="source-type-label">🎥 YouTube URL</span>
+                                </label>
+                                <label class="source-type-option">
+                                    <input type="radio" name="srcType" value="file" onchange="toggleSourceInput()">
+                                    <span class="source-type-label">📄 PDF File</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Input Field -->
+                        <div class="form-group">
+                            <span class="form-label" id="src-field-label">Enter Topic Name</span>
+                            <div id="src-input-container">
+                                <input type="text" class="form-input" id="src-topic" placeholder="e.g. Photosynthesis, Newton's Laws of Motion..." value="Photosynthesis">
+                            </div>
+                        </div>
+
+                        <!-- Grid Settings -->
+                        <div class="settings-grid">
+                            <div class="form-group">
+                                <span class="form-label">Grade Level</span>
+                                <select class="form-select" id="grade-level">
+                                    <option value="Grade 6">Grade 6</option>
+                                    <option value="Grade 7" selected>Grade 7</option>
+                                    <option value="Grade 8">Grade 8</option>
+                                    <option value="Grade 9">Grade 9</option>
+                                    <option value="Grade 10">Grade 10</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <span class="form-label">Standard</span>
+                                <select class="form-select" id="curriculum-standard">
+                                    <option value="CBSE" selected>CBSE Syllabus</option>
+                                    <option value="ICSE">ICSE Syllabus</option>
+                                    <option value="NGSS">NGSS (US)</option>
+                                    <option value="None">Generic Standard</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="settings-grid">
+                            <div class="form-group">
+                                <span class="form-label">Lesson Duration</span>
+                                <select class="form-select" id="lesson-duration">
+                                    <option value="30">30 Minutes</option>
+                                    <option value="45" selected>45 Minutes</option>
+                                    <option value="60">60 Minutes</option>
+                                    <option value="90">90 Minutes</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <span class="form-label">Reading Level</span>
+                                <select class="form-select" id="reading-level">
+                                    <option value="Easy">Easy</option>
+                                    <option value="Medium" selected>Medium</option>
+                                    <option value="Advanced">Advanced</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <span class="form-label">Language</span>
+                            <select class="form-select" id="lesson-language">
+                                <option value="English" selected>English</option>
+                                <option value="Hindi">Hindi / Hinglish</option>
+                                <option value="Spanish">Spanish</option>
+                            </select>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button class="btn-full btn-gradient" onclick="generateLessonPlan()" style="margin-top: 0.5rem;">
+                            <span>✨ Generate Lesson Plan</span>
+                        </button>
+                    </div>
+
+                    <!-- LOADING STAGE -->
+                    <div class="loading-container" id="planner-loading-stage">
+                        <div class="planner-title-row" style="text-align: center;">
+                            <h2>AI is Architecting...</h2>
+                            <p id="loading-subtext">Generating curriculum-aligned lessons</p>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem;">
+                            <div class="skeleton-block" style="height: 25px; width: 60%;"></div>
+                            <div class="skeleton-block" style="height: 120px; width: 100%;"></div>
+                            <div class="skeleton-block" style="height: 15px; width: 40%;"></div>
+                            <div class="skeleton-block" style="height: 80px; width: 100%;"></div>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="progress-fill"></div>
+                        </div>
+                    </div>
+
+                    <!-- OUTPUT STAGE -->
+                    <div class="output-container" id="planner-output-stage">
+                        <div class="output-header">
+                            <button class="output-back-btn" onclick="backToInputForm()">
+                                <span>← Edit Config</span>
+                            </button>
+                            <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-secondary); letter-spacing: 0.05em; text-transform: uppercase;">Generated Plan</span>
+                        </div>
+
+                        <div class="output-body">
+                            <!-- Metadata Header -->
+                            <div class="output-meta-card">
+                                <div class="output-meta-title" id="out-title">Lesson Plan: Photosynthesis</div>
+                                <div class="output-meta-grid">
+                                    <span>Grade: <strong id="out-grade">Grade 7</strong></span>
+                                    <span>Standard: <strong id="out-std">CBSE</strong></span>
+                                    <span>Duration: <strong id="out-dur">45 Mins</strong></span>
+                                    <span>Language: <strong id="out-lang">English</strong></span>
+                                </div>
+                            </div>
+
+                            <!-- Objectives -->
+                            <div class="out-section">
+                                <h3>🎯 Learning Objectives</h3>
+                                <ul class="objectives-list" id="out-objectives">
+                                    <!-- Populated on generate -->
+                                </ul>
+                            </div>
+
+                            <!-- Timeline Flow -->
+                            <div class="out-section">
+                                <h3>⏱️ Lesson Flow Timeline</h3>
+                                <div id="out-timeline">
+                                    <!-- Populated on generate -->
+                                </div>
+                            </div>
+
+                            <!-- Teacher Resources -->
+                            <div class="out-section">
+                                <h3>🧠 Teacher Support & Extensions</h3>
+                                <div class="out-accordion">
+                                    <button class="out-accordion-header" onclick="toggleLocalAccordion(this)">
+                                        <span>Differentiated Learning Support</span>
+                                        <span>▼</span>
+                                    </button>
+                                    <div class="out-accordion-content" id="out-diff-support">
+                                        <!-- Populated -->
+                                    </div>
+                                </div>
+                                <div class="out-accordion">
+                                    <button class="out-accordion-header" onclick="toggleLocalAccordion(this)">
+                                        <span>Common Misconceptions</span>
+                                        <span>▼</span>
+                                    </button>
+                                    <div class="out-accordion-content" id="out-misconceptions">
+                                        <!-- Populated -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="output-actions">
+                                <button class="btn-full btn-gradient" onclick="pushSlidesToCanvas()">
+                                    <span>🖥️ Add to Board as Slides</span>
+                                </button>
+                                <button class="btn-full btn-transparent" onclick="alert('Exporting PDF worksheet...')">
+                                    <span>📄 Export Student Worksheet (PDF)</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- --- JAVASCRIPT LOGIC --- -->
+    <script>
+        // Tab switcher
+        function switchTab(tabId, btnElement) {
+            // Remove active class from headers
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            // Remove active class from panels
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+            document.getElementById('panel-' + tabId).classList.add('active');
+        }
+
+        // Toggle Source Input Field based on selection
+        function toggleSourceInput() {
+            const srcVal = document.querySelector('input[name="srcType"]:checked').value;
+            const container = document.getElementById('src-input-container');
+            const label = document.getElementById('src-field-label');
+
+            if (srcVal === 'topic') {
+                label.innerText = 'Enter Topic Name';
+                container.innerHTML = '<input type="text" class="form-input" id="src-topic" placeholder="e.g. Photosynthesis, Newton\'s Laws of Motion..." value="Photosynthesis">';
+            } else if (srcVal === 'youtube') {
+                label.innerText = 'YouTube Video Link';
+                container.innerHTML = '<input type="text" class="form-input" id="src-youtube" placeholder="https://www.youtube.com/watch?v=..." value="https://www.youtube.com/watch?v=sQK3Yr4Sc_k">';
+            } else if (srcVal === 'file') {
+                label.innerText = 'Upload Curriculum File (PDF)';
+                container.innerHTML = '<input type="file" class="form-input" id="src-file" style="padding: 0.5rem;">';
+            }
+        }
+
+        // Mock Lesson Database based on Topic Input
+        const mockDatabase = {
+            "photosynthesis": {
+                title: "Photosynthesis & Plant Energy",
+                objectives: [
+                    "Define photosynthesis and state the chemical word equation.",
+                    "Explain the function of chloroplasts and chlorophyll in capturing solar energy.",
+                    "Understand how oxygen and glucose are utilized post-reaction."
+                ],
+                timeline: [
+                    { title: "Intro & Plant Contrast Hook", time: "05 mins", desc: "Introduce a plant and a piece of bread. Challenge students to identify how plants create food without ingesting outside matter." },
+                    { title: "Core: Chemical Inputs & Outputs", time: "20 mins", desc: "Explain the formula: Carbon Dioxide + Water + Light -> Glucose + Oxygen. Walk through stomata and roots access pathways." },
+                    { title: "Guided Practice: Balance Equation", time: "10 mins", desc: "Write reactant elements out of order on the smartboard. Guide students to correctly trace carbon and oxygen cycles." },
+                    { title: "Reflective Exit Ticket", time: "10 mins", desc: "Students answer: 'Why would life on earth stop if solar radiation were blocked for 1 year?'" }
+                ],
+                diffSupport: "Struggling Learners: Focus on inputs/outputs using color-coded cards (Green for Chlorophyll, Yellow for Sunlight). Advanced Learners: Introduce the difference between Light-dependent reactions and the Calvin cycle.",
+                misconceptions: "Students often believe plants only perform photosynthesis and do not respire. Explain that plants respire 24/7 using mitochondria, just like animals.",
+                slides: [
+                    { type: 'title', title: "Photosynthesis & Plant Energy", sub: "Grade 7 Science - CBSE aligned" },
+                    { type: 'content', title: "Learning Objectives", points: ["1. State the word equation for Photosynthesis.", "2. Understand the role of Chlorophyll as a solar collector.", "3. Identify stomata gas exchange mechanics."] },
+                    { type: 'content', title: "The Photosynthesis Equation", points: ["• Reactants: Carbon Dioxide (from air) + Water (from soil)", "• Catalyst: Light Energy (absorbed by Chlorophyll)", "• Products: Glucose (stored sugar) + Oxygen (released to air)"] }
+                ]
+            },
+            "newton": {
+                title: "Newton's Laws of Motion",
+                objectives: [
+                    "State and explain Newton's Three Laws of Motion.",
+                    "Define inertia, force, mass, and acceleration.",
+                    "Calculate force using the F = ma equation."
+                ],
+                timeline: [
+                    { title: "Hook: The Tablecloth Pull", time: "05 mins", desc: "Show a video or demonstrate pulling a sheet from under cups without moving them. Introduce inertia." },
+                    { title: "Core: Newton's 3 Laws", time: "20 mins", desc: "Define Law 1 (Inertia), Law 2 (F=ma), and Law 3 (Action-Reaction) with real-world examples." },
+                    { title: "Guided Calculation Practice", time: "10 mins", desc: "Practice solving F = ma problems: Calculate the force required to accelerate a 5kg mass at 3m/s²." },
+                    { title: "Wrap-up Reflection", time: "10 mins", desc: "Review daily examples: seatbelts (1st Law) and rocket propulsion (3rd Law)." }
+                ],
+                diffSupport: "Struggling Learners: Draw simple force diagrams showing balanced vs. unbalanced arrows. Advanced Learners: Calculate friction resistance variables in 2D vectors.",
+                misconceptions: "Students often think an object requires a continuous force to remain in motion. Clarify that friction is an opposing force, and in a vacuum, objects slide forever without speed loss.",
+                slides: [
+                    { type: 'title', title: "Newton's Laws of Motion", sub: "Grade 7 Science - CBSE aligned" },
+                    { type: 'content', title: "What is Inertia? (1st Law)", points: ["• Objects at rest stay at rest.", "• Objects in motion stay in motion.", "• Unless acted on by an external unbalanced force."] },
+                    { type: 'content', title: "Force, Mass, & Acceleration", points: ["• Formula: Force = Mass x Acceleration (F = ma)", "• Force is measured in Newtons (N).", "• Heavier objects require more force to speed up."] }
+                ]
+            }
+        };
+
+        let currentLessonData = null;
+        let currentSlideIndex = 0;
+
+        // Generate Lesson Plan Action
+        function generateLessonPlan() {
+            const inputStage = document.getElementById('planner-input-stage');
+            const loadingStage = document.getElementById('planner-loading-stage');
+            const outputStage = document.getElementById('planner-output-stage');
+            
+            // Determine search term
+            let query = "photosynthesis";
+            const topicInput = document.getElementById('src-topic');
+            if (topicInput && topicInput.value.toLowerCase().includes("newton")) {
+                query = "newton";
+            }
+
+            // Hide form, show loader
+            inputStage.style.display = "none";
+            loadingStage.style.display = "flex";
+
+            // Mock progress bar increments
+            const progressFill = document.getElementById('progress-fill');
+            const subtext = document.getElementById('loading-subtext');
+            const phases = [
+                "Retrieving curriculum requirements...",
+                "Running pedagogical flow designer...",
+                "Drafting learning objectives...",
+                "Polishing differentiated guides..."
+            ];
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 5;
+                if (progress <= 100) {
+                    progressFill.style.width = progress + '%';
+                    const phaseIdx = Math.min(Math.floor(progress / 25), 3);
+                    subtext.innerText = phases[phaseIdx];
+                } else {
+                    clearInterval(interval);
+                    
+                    // Show Output
+                    loadingStage.style.display = "none";
+                    outputStage.style.display = "block";
+
+                    // Load mock database entry
+                    const data = mockDatabase[query];
+                    currentLessonData = data;
+                    populateOutputStage(data);
+                }
+            }, 100);
+        }
+
+        // Populate generated plan data into output preview UI
+        function populateOutputStage(data) {
+            document.getElementById('out-title').innerText = "Lesson Plan: " + data.title;
+            document.getElementById('out-grade').innerText = document.getElementById('grade-level').value;
+            document.getElementById('out-std').innerText = document.getElementById('curriculum-standard').value;
+            document.getElementById('out-dur').innerText = document.getElementById('lesson-duration').value + " Mins";
+            document.getElementById('out-lang').innerText = document.getElementById('lesson-language').value;
+
+            // Objectives
+            const objList = document.getElementById('out-objectives');
+            objList.innerHTML = data.objectives.map(obj => `<li>${obj}</li>`).join('');
+
+            // Timeline
+            const timelineList = document.getElementById('out-timeline');
+            timelineList.innerHTML = data.timeline.map(step => `
+                <div class="flow-step-item">
+                    <div class="flow-step-title">
+                        <span>${step.title}</span>
+                        <span class="flow-step-time">${step.time}</span>
+                    </div>
+                    <div class="flow-step-desc">${step.desc}</div>
+                </div>
+            `).join('');
+
+            // Accordions
+            document.getElementById('out-diff-support').innerText = data.diffSupport;
+            document.getElementById('out-misconceptions').innerText = data.misconceptions;
+        }
+
+        // Back to config form
+        function backToInputForm() {
+            document.getElementById('planner-output-stage').style.display = "none";
+            document.getElementById('planner-input-stage').style.display = "flex";
+        }
+
+        // Toggle Accordions inside Output Panel
+        function toggleLocalAccordion(headerEl) {
+            const content = headerEl.nextElementSibling;
+            if (content.style.display === "block") {
+                content.style.display = "none";
+                headerEl.querySelector('span:last-child').innerText = "▼";
+            } else {
+                content.style.display = "block";
+                headerEl.querySelector('span:last-child').innerText = "▲";
+            }
+        }
+
+        // Action: Push Slides to Whiteboard Canvas (70% Area)
+        function pushSlidesToCanvas() {
+            if (!currentLessonData) return;
+
+            // Hide Empty state
+            document.getElementById('canvas-empty').style.display = "none";
+            document.getElementById('canvas-slide').style.display = "flex";
+            document.getElementById('slide-strip').style.display = "flex";
+
+            // Generate Slide thumbs
+            const strip = document.getElementById('slide-strip');
+            strip.innerHTML = currentLessonData.slides.map((slide, idx) => `
+                <div class="page-thumb ${idx === 0 ? 'active' : ''}" onclick="selectSlide(${idx})" id="thumb-${idx}">
+                    Slide ${idx + 1}
+                </div>
+            `).join('');
+
+            // Show Slide 1
+            selectSlide(0);
+            alert("Succeeded! 3 structured slides added to whiteboard pages strip.");
+        }
+
+        // Select active slide on canvas
+        function selectSlide(idx) {
+            currentSlideIndex = idx;
+
+            // Update thumb active state
+            document.querySelectorAll('.page-thumb').forEach(thumb => thumb.classList.remove('active'));
+            const activeThumb = document.getElementById(`thumb-${idx}`);
+            if (activeThumb) activeThumb.classList.add('active');
+
+            const slide = currentLessonData.slides[idx];
+            const inner = document.getElementById('slide-inner');
+
+            if (slide.type === 'title') {
+                inner.innerHTML = `
+                    <div class="slide-title-layout">
+                        <h3>${slide.title}</h3>
+                        <p>${slide.sub}</p>
+                    </div>
+                `;
+            } else if (slide.type === 'content') {
+                inner.innerHTML = `
+                    <div class="slide-content-layout">
+                        <h3>${slide.title}</h3>
+                        <ul>
+                            ${slide.points.map(p => `<li>${p}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
